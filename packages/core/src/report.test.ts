@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildReports } from './report';
-import type { PullRequest, RepoInfo, Ticket } from './types';
+import type { GitHubIssue, PullRequest, RepoInfo, Ticket } from './types';
 
 const OCIS = 'owncloud/ocis';
 const repos: RepoInfo[] = [
@@ -301,5 +301,64 @@ describe('PRs into feature branches', () => {
       [2, true],
     ]);
     expect(report!.flags.map((flag) => flag.code)).toContain('PR_OPEN');
+  });
+});
+
+// Real case: owncloud/ocis#13266 says "## [OCISDEV-1600]" in its description; no PR closes it.
+describe('GitHub issues that mention the ticket', () => {
+  const issue = (overrides: Partial<GitHubIssue> = {}): GitHubIssue => ({
+    repo: OCIS,
+    number: 13266,
+    title: 'Unclear error message when selecting "Keep both" with insufficient space quota',
+    url: `https://github.com/${OCIS}/issues/13266`,
+    body: '## [OCISDEV-1600]\n### Description',
+    state: 'open',
+    ...overrides,
+  });
+  const t = ticket({ key: 'OCISDEV-1600' });
+  const fix = (closingIssues: PullRequest['closingIssues'] = []) =>
+    pr({ number: 13300, title: '[OCISDEV-1600] clearer quota error', closingIssues });
+  const build = (prs: PullRequest[], issues: GitHubIssue[]) =>
+    buildReports({ projectKey: 'OCISDEV', tickets: [t], pullRequests: prs, issues, repos })[0]!;
+
+  it('flags an issue no PR of the ticket is linked to', () => {
+    const report = build([fix()], [issue()]);
+    expect(report.unlinkedIssues.map((i) => i.number)).toEqual([13266]);
+    expect(report.flags).toContainEqual({
+      code: 'ISSUE_NOT_LINKED',
+      severity: 'error',
+      message: 'owncloud/ocis#13266 is not linked to any PR',
+    });
+  });
+
+  it('is happy when a PR closes the issue', () => {
+    const ref = { repo: OCIS, number: 13266, title: '', url: '' };
+    const report = build([fix([ref])], [issue()]);
+    expect(report.unlinkedIssues).toEqual([]);
+    expect(report.flags.map((f) => f.code)).not.toContain('ISSUE_NOT_LINKED');
+  });
+
+  it('does not count a link from a PR closed without merging', () => {
+    const ref = { repo: OCIS, number: 13266, title: '', url: '' };
+    const abandoned = pr({ ...fix([ref]), number: 13299, state: 'closed', mergedAt: null });
+    const report = build([abandoned, fix()], [issue()]);
+    expect(report.unlinkedIssues.map((i) => i.number)).toEqual([13266]);
+    // Listed once, as not linked: the abandoned PR's link counts nowhere.
+    expect(report.issues).toEqual([]);
+  });
+
+  // A PR that links an issue closes it on merge, so a forgotten link leaves the issue open.
+  it('ignores closed issues, and other tickets’ issues', () => {
+    const report = build(
+      [fix()],
+      [issue({ number: 1, state: 'closed' }), issue({ number: 3, body: 'see OCISDEV-16000' })],
+    );
+    expect(report.unlinkedIssues).toEqual([]);
+  });
+
+  it('leaves a ticket without PRs to the "No PR" flag', () => {
+    const report = build([], [issue()]);
+    expect(report.unlinkedIssues.map((i) => i.number)).toEqual([13266]);
+    expect(report.flags.map((f) => f.code)).toEqual(['NO_PR']);
   });
 });

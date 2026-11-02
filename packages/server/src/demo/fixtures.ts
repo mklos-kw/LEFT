@@ -2,7 +2,14 @@
  * Sample data for demo mode, modelled on real OCISDEV tickets and owncloud/ocis
  * PRs from autumn 2026. Assignee names are made up.
  */
-import type { Board, PrState, PullRequest, Sprint, Ticket } from '@ocis-dashboard/core';
+import type {
+  Board,
+  GitHubIssue,
+  PrState,
+  PullRequest,
+  Sprint,
+  Ticket,
+} from '@ocis-dashboard/core';
 
 export const DEMO_BOARDS: Board[] = [
   { id: 1, name: 'oCIS Scrum' },
@@ -343,6 +350,28 @@ export const DEMO_PULL_REQUESTS: PullRequest[] = [
   pr(OCIS, 10990, 'fix(search): [OCISDEV-412] escape special characters in queries', {
     merged: '2025-06-18',
   }),
+];
+
+/** Issues that mention a ticket key in their description, as the team writes them. */
+export const DEMO_ISSUES: GitHubIssue[] = [
+  // Closed by #13233, so OCISDEV-1183 is fine.
+  {
+    repo: OCIS,
+    number: 12990,
+    title: 'The web client prints debug output on every page',
+    body: '## [OCISDEV-1183]\n### Description\nDebug messages show up in the console.',
+    url: 'https://github.com/owncloud/ocis/issues/12990',
+    state: 'closed',
+  },
+  // #13273 doesn't link it: OCISDEV-1601 shows "Issue not linked to PR".
+  {
+    repo: OCIS,
+    number: 13266,
+    title: 'Shared links open the wrong folder after login',
+    body: '## [OCISDEV-1601]\n### Description\nThe folder only opens after a second login.',
+    url: 'https://github.com/owncloud/ocis/issues/13266',
+    state: 'open',
+  },
 ];
 
 /** Branches that exist, and when each was cut from the default branch. */

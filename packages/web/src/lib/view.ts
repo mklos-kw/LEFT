@@ -24,6 +24,10 @@ export const FLAGS: Record<FlagCode, FlagMeta> = {
     label: 'No key in PR',
     hint: 'Put the ticket key in the pull request title, for example [OCISDEV-1234].',
   },
+  ISSUE_NOT_LINKED: {
+    label: 'Issue not linked to PR',
+    hint: 'A GitHub issue mentions the ticket, but no PR is linked to it. Add "Fixes owner/repo#N" to the PR description, or link the issue in the PR\'s Development sidebar.',
+  },
   PR_OPEN: {
     label: 'PR open',
     hint: 'The pull request is not merged yet.',

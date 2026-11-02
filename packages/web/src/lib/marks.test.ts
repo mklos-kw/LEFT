@@ -30,6 +30,7 @@ function report(key: string, flags: Flag[]): TicketReport {
     issues: [],
     coverage: [],
     otherRepoLinks: [],
+    unlinkedIssues: [],
     flags,
   };
 }

@@ -5,6 +5,7 @@ import { extractKeys } from './keys';
 import type {
   BranchCoverage,
   BranchStatus,
+  GitHubIssue,
   GitHubIssueRef,
   LinkedPr,
   MatchSource,
@@ -21,6 +22,8 @@ export interface BuildReportsInput {
   tickets: Ticket[];
   /** PRs from the selected repos; PRs from other repos are ignored. */
   pullRequests: PullRequest[];
+  /** Issues from the key search; those mentioning a ticket's key belong to it. */
+  issues?: GitHubIssue[];
   repos: RepoInfo[];
   /** Per-repo override of the fixVersion → branch template. */
   branchTemplates?: Record<RepoName, string>;
@@ -41,9 +44,14 @@ const SOURCE_ORDER: MatchSource[] = ['title', 'branch', 'jira-link', 'backport-o
 
 export function buildReports(input: BuildReportsInput): TicketReport[] {
   const repos = new Map(input.repos.map((repo) => [normalizeRepo(repo.name), repo]));
-  const analysed = uniquePrs(input.pullRequests)
+  const analysed = uniqueByRef(input.pullRequests)
     .filter((pr) => repos.has(pr.repo))
     .map((pr) => analysePr(pr, input.projectKey));
+
+  const issuesByKey = indexByKey(
+    uniqueByRef(input.issues ?? []).filter((issue) => repos.has(issue.repo)),
+    input.projectKey,
+  );
 
   const templates = input.branchTemplates ?? {};
   return input.tickets.map((ticket) => {
@@ -59,15 +67,17 @@ export function buildReports(input: BuildReportsInput): TicketReport[] {
       issues: closingIssues(prs),
       coverage: branchCoverage(ticket, prs, repos, templates),
       otherRepoLinks: otherRepoLinks(ticket, repos),
+      unlinkedIssues: unlinkedIssues(issuesByKey.get(ticket.key) ?? [], prs),
     };
     return { ...report, flags: evaluateFlags(report, input.rules) };
   });
 }
 
-function uniquePrs(prs: PullRequest[]): PullRequest[] {
-  const byId = new Map<string, PullRequest>();
-  for (const pr of prs) {
-    const normalized = { ...pr, repo: normalizeRepo(pr.repo) };
+/** Drops repeats of the same `repo#number`, with repo names normalized; the last copy wins. */
+function uniqueByRef<T extends { repo: RepoName; number: number }>(items: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const item of items) {
+    const normalized = { ...item, repo: normalizeRepo(item.repo) };
     byId.set(prId(normalized.repo, normalized.number), normalized);
   }
   return [...byId.values()];
@@ -153,9 +163,35 @@ function otherRepoLinks(ticket: Ticket, repos: Map<RepoName, RepoInfo>): RepoNam
   return [...new Set(linkedRepos)];
 }
 
+/** Issues per ticket key found in their title or description. */
+function indexByKey(issues: GitHubIssue[], projectKey: string): Map<string, GitHubIssue[]> {
+  const byKey = new Map<string, GitHubIssue[]>();
+  for (const issue of issues) {
+    for (const key of extractKeys(`${issue.title}\n${issue.body}`, projectKey)) {
+      byKey.set(key, [...(byKey.get(key) ?? []), issue]);
+    }
+  }
+  return byKey;
+}
+
+/** PRs that still matter for links: closed-unmerged ones were abandoned. */
+const livePrs = (prs: LinkedPr[]) => prs.filter(({ pr }) => pr.state !== 'closed');
+/**
+ * The ticket's open issues that none of its live PRs is linked to ("Fixes #N"
+ * or the PR's Development sidebar). A linked issue is closed when its PR is
+ * merged, so a forgotten link leaves the issue open; closed issues are skipped.
+ */
+function unlinkedIssues(issues: GitHubIssue[], prs: LinkedPr[]): GitHubIssue[] {
+  const linked = new Set(closingIssues(prs).map((ref) => prId(ref.repo, ref.number)));
+  return issues.filter(
+    (issue) => issue.state === 'open' && !linked.has(prId(issue.repo, issue.number)),
+  );
+}
+
+/** Issues the ticket's live PRs are linked to; links from abandoned PRs don't count. */
 function closingIssues(prs: LinkedPr[]): GitHubIssueRef[] {
   const byId = new Map<string, GitHubIssueRef>();
-  for (const { pr } of prs) {
+  for (const { pr } of livePrs(prs)) {
     for (const issue of pr.closingIssues) byId.set(prId(issue.repo, issue.number), issue);
   }
   return [...byId.values()];

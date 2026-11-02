@@ -28,6 +28,7 @@ function report(key: string, coverage: Partial<BranchCoverage>[]): TicketReport 
       ...c,
     })),
     otherRepoLinks: [],
+    unlinkedIssues: [],
     flags: [],
   };
 }

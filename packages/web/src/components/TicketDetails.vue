@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import type { MatchSource, TicketReport } from '@ocis-dashboard/core';
+import type { GitHubIssueRef, MatchSource, TicketReport } from '@ocis-dashboard/core';
+import { computed } from 'vue';
 import { FLAGS } from '../lib/view';
 
 /** Explains the row: what to fix, what each PR is and why it belongs to the ticket. */
-defineProps<{ report: TicketReport }>();
+const props = defineProps<{ report: TicketReport }>();
+
+/** Linked and unlinked issues in one list, each issue once. */
+const issues = computed(() => {
+  const byUrl = new Map<string, { issue: GitHubIssueRef; linked: boolean }>();
+  for (const issue of props.report.unlinkedIssues) byUrl.set(issue.url, { issue, linked: false });
+  for (const issue of props.report.issues) byUrl.set(issue.url, { issue, linked: true });
+  return [...byUrl.values()];
+});
 
 const SOURCE_TEXT: Record<MatchSource, string> = {
   title: 'key in the title',
@@ -65,14 +74,21 @@ const SOURCE_TEXT: Record<MatchSource, string> = {
       </template>
     </section>
 
-    <section v-if="report.issues.length > 0">
+    <section v-if="issues.length > 0">
       <h3>GitHub issues</h3>
       <ul class="pr-list">
-        <li v-for="issue in report.issues" :key="issue.url">
+        <li v-for="{ issue, linked } in issues" :key="issue.url">
           <a class="identifier" :href="issue.url" target="_blank" rel="noreferrer">
             {{ issue.repo }}#{{ issue.number }}
           </a>
           {{ issue.title }}
+          <p class="hint">
+            {{
+              linked
+                ? 'Linked to a PR of this ticket.'
+                : 'Mentions the key, but no PR of this ticket is linked to it.'
+            }}
+          </p>
         </li>
       </ul>
     </section>

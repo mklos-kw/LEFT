@@ -1,7 +1,7 @@
-import type { PullRequest, Ticket } from '@ocis-dashboard/core';
+import type { GitHubIssue, PullRequest, Ticket } from '@ocis-dashboard/core';
 import { describe, expect, it, vi } from 'vitest';
 import { TtlCache } from '../util/ttl-cache';
-import type { CodeHost, TicketSource } from './ports';
+import type { CodeHost, SearchHits, TicketSource } from './ports';
 import { ReportService } from './service';
 
 const OCIS = 'owncloud/ocis';
@@ -16,6 +16,19 @@ const ticket: Ticket = {
   fixVersions: ['Frances - 9.0.0'],
   remoteLinkUrls: [],
 };
+
+const hits = (pullRequests: PullRequest[]): SearchHits => ({ pullRequests, issues: [] });
+
+function issue(number: number, body: string): GitHubIssue {
+  return {
+    repo: OCIS,
+    number,
+    title: 'Guests get no role',
+    body,
+    url: `https://github.com/${OCIS}/issues/${number}`,
+    state: 'open',
+  };
+}
 
 function pr(number: number, overrides: Partial<PullRequest> = {}): PullRequest {
   return {
@@ -49,16 +62,19 @@ function setup() {
       defaultBranch: 'master',
       branches: branches.filter((branch) => branch === 'stable-9.0'),
     })),
-    searchPullRequests: vi.fn(async (queries: string[]) =>
+    search: vi.fn(async (queries: string[]) =>
       queries.map((query) => {
-        if (query.includes('"OCISDEV-1464"')) return [pr(13231)];
+        // The key search finds PRs and issues; the issue mentions the key in its description.
+        if (query.includes('"OCISDEV-1464"')) {
+          return { pullRequests: [pr(13231)], issues: [issue(13200, '## [OCISDEV-1464]')] };
+        }
         // Keyless backport of #13231, found through the body search.
         if (query.includes('in:body "13231"')) {
-          return [
+          return hits([
             pr(13247, { title: 'backport', baseRef: 'stable-9.0', body: 'Backport of #13231' }),
-          ];
+          ]);
         }
-        return [];
+        return hits([]);
       }),
     ),
     // #99 is only known from the Jira remote link.
@@ -93,7 +109,11 @@ describe('ReportService', () => {
       'NOT_LINKED_IN_JIRA', // #13247
       'KEY_MISSING_IN_PR', // #99
       'KEY_MISSING_IN_PR', // #13247
+      'ISSUE_NOT_LINKED', // issue #13200 mentions the key, no PR closes it
     ]);
+    expect(report!.unlinkedIssues.map((i) => i.number)).toEqual([13200]);
+    // One search per ticket finds PRs and issues: no `is:pr`.
+    expect(vi.mocked(code.search).mock.calls[0]![0]).toEqual([`repo:${OCIS} "OCISDEV-1464"`]);
   });
 
   it('serves repeated reports from the cache', async () => {
@@ -105,7 +125,7 @@ describe('ReportService', () => {
     expect(tickets.sprintTickets).toHaveBeenCalledTimes(1);
     expect(tickets.remoteLinkUrls).toHaveBeenCalledTimes(1);
     // key search, backports of #13231/#99, backports of the found backport #13247
-    expect(code.searchPullRequests).toHaveBeenCalledTimes(3);
+    expect(code.search).toHaveBeenCalledTimes(3);
   });
 
   it('reports progress for every step, ending each with done === total', async () => {
@@ -133,13 +153,15 @@ describe('ReportService', () => {
 
   it('follows a keyless backport of a backport', async () => {
     const { service, code } = setup();
-    const searchMock = vi.mocked(code.searchPullRequests);
+    const searchMock = vi.mocked(code.search);
     const original = searchMock.getMockImplementation()!;
     searchMock.mockImplementation(async (queries) => {
       const results = await original(queries);
       return queries.map((query, i) =>
         query.includes('in:body "13247"')
-          ? [pr(13280, { title: 'backport', baseRef: 'stable-8.0', body: 'Backport of #13247' })]
+          ? hits([
+              pr(13280, { title: 'backport', baseRef: 'stable-8.0', body: 'Backport of #13247' }),
+            ])
           : results[i]!,
       );
     });
@@ -162,6 +184,6 @@ describe('ReportService', () => {
       service.build({ kind: 'sprint', sprintId: 27 }, [OCIS], { signal: controller.signal }),
     ).rejects.toThrow();
     expect(code.repoInfo).not.toHaveBeenCalled();
-    expect(code.searchPullRequests).not.toHaveBeenCalled();
+    expect(code.search).not.toHaveBeenCalled();
   });
 });

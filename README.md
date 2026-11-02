@@ -6,14 +6,15 @@ For each OCISDEV sprint (or date range), this dashboard shows every ticket with
 its GitHub PRs, the GitHub issues they close and their backports per
 `stable-*` branch. It flags the tickets that need attention:
 
-| Flag                 | Meaning                                                                          |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `No PR`              | No PR found in the selected repos.                                               |
-| `PR open`            | The main PR is not merged yet (warning).                                         |
-| `Backport missing`   | A fixVersion like `Frances - 9.0.0` requires `stable-9.0`, but no PR targets it. |
-| `Backport open`      | The required backport exists but isn't merged (warning).                         |
-| `Not linked in Jira` | The PR belongs to the ticket, but the ticket's Jira links don't list it.         |
-| `No key in PR`       | The PR belongs to the ticket, but its title and branch lack the key.             |
+| Flag                     | Meaning                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `No PR`                  | No PR found in the selected repos.                                               |
+| `PR open`                | The main PR is not merged yet (warning).                                         |
+| `Backport missing`       | A fixVersion like `Frances - 9.0.0` requires `stable-9.0`, but no PR targets it. |
+| `Backport open`          | The required backport exists but isn't merged (warning).                         |
+| `Not linked in Jira`     | The PR belongs to the ticket, but the ticket's Jira links don't list it.         |
+| `No key in PR`           | The PR belongs to the ticket, but its title and branch lack the key.             |
+| `Issue not linked to PR` | A GitHub issue mentions the key, but none of the ticket's PRs is linked to it.   |
 
 Everyone signs in with their **own** Atlassian and GitHub accounts and sees only
 what those accounts can see. Nothing is stored: links are worked out on every
@@ -21,16 +22,45 @@ request, and results are cached in memory for 5 minutes per user.
 
 ## How tickets and PRs are matched
 
+Jira is the starting point: only tickets in the chosen sprint (or updated in
+the chosen dates) are shown, in any status. For each ticket, the dashboard then
+looks on GitHub:
+
+1. It searches each selected repo for the key. GitHub searches PR titles,
+   descriptions and comments, but **not branch names**.
+2. It fetches the PRs the ticket's Jira links point to that the search missed.
+3. It searches for PRs whose description mentions a found PR's number, to find
+   backports without the key (repeated, so backports of backports are found).
+
 A PR belongs to a ticket if **any** of these is true:
 
-1. The PR title or branch name contains the key (`[OCISDEV-1464]`, `fix/ocisdev-1464`).
+1. The PR title contains the key (`[OCISDEV-1464]`). A key in the branch name
+   (`fix/ocisdev-1464`) counts too, but only for PRs found another way.
 2. The ticket's Jira remote links point to the PR.
-3. It is a backport (it targets a non-default branch) whose description says
-   e.g. `backports: #N`, `Backport of #N` or `Backports #N` (a link to the PR
-   works too), and PR #N belongs to the ticket.
+3. It is a backport whose description says e.g. `backports: #N`,
+   `Backport of #N` or `Backports #N` (a link to the PR works too), and PR #N
+   belongs to the ticket.
 
-A key that appears only in a PR's description is shown as "mentioned", not as
-the ticket's PR.
+A key that appears only in a PR's description is shown under "Only mentioned
+in": such a PR is listed for information, but it doesn't count as the ticket's
+PR, isn't checked, and doesn't affect branches. "See also OCISDEV-1473" doesn't
+mean the PR fixes that ticket.
+
+**Where the fix is** comes from each PR's target branch on GitHub, not from the
+branch's commits. A PR into `stable-9.0` that is merged makes `stable-9.0`
+**merged**; one that is open makes it **open**. Any PR into a release branch
+(`stable-X.Y`) counts as a backport, whether or not Jira lists it. Commit IDs
+aren't used, so a cherry-pick pushed straight to a branch without a PR isn't
+seen.
+
+**GitHub issues:** an issue belongs to a ticket when its title or description
+has the key, e.g. `## [OCISDEV-1600]`. The same search that finds the PRs finds
+these issues, so this costs no extra requests. If the ticket has PRs but none
+of them is linked to an **open** issue (`Fixes owner/repo#N` in the PR
+description, or the PR's Development sidebar), the ticket gets `Issue not
+linked to PR`. Closed issues are skipped: a linked issue closes when its PR is
+merged, so a forgotten link leaves the issue open. Links from PRs closed
+without merging don't count.
 
 "Master" below means the repo's default branch (`master` for oCIS, `main` for
 reva).
@@ -178,6 +208,21 @@ npm run check      # typecheck + lint + format check + tests
 npm run format     # prettier --write
 ```
 
+### Requests per report
+
+All with the signed-in user's own tokens, cached per user for 5 minutes.
+
+- **Jira:** the sprint's tickets (`/rest/agile/1.0/sprint/{id}/issue`) or the
+  tickets updated in the dates (`/rest/api/3/search/jql`), then each ticket's
+  web links (`/rest/api/3/issue/{key}/remotelink`).
+- **GitHub GraphQL:** per repo, the default branch and which stable branches
+  exist; per ticket, a search for the key (`repo:owner/name "OCISDEV-1464"`,
+  10 searches per request), which returns PRs and issues; PRs known only from
+  Jira links, by number; and the backport searches
+  (`repo:owner/name is:pr in:body "13231"`).
+- **GitHub REST:** per stable branch, `compare/master...stable-9.0` for the
+  merge base, whose date is used as the date the branch was cut.
+
 ### Layout
 
 ```
@@ -212,6 +257,11 @@ missing.
 
 - PRs are found through GitHub search on the ticket key. If a PR has the key
   **only in its branch name** and isn't linked in Jira, search won't find it.
+  GitHub's `head:` filter only matches the start of a branch name
+  (`head:ocisdev-1464` doesn't find `feat/ocisdev-1464-…`), so searching branch
+  names would mean guessing every prefix for every ticket.
+- Changes that reach a branch without a PR (direct pushes, cherry-picks pushed
+  by hand) aren't detected; the branch shows as missing.
 - Sessions live in server memory, so restarting the server signs everyone out.
 - The Docker image runs TypeScript through `tsx`. That's fine for local use,
   but compile the code before any real deployment.

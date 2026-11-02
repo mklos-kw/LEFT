@@ -27,6 +27,12 @@ export interface GitHubIssueRef {
   url: string;
 }
 
+/** A GitHub issue found by searching for a ticket key. */
+export interface GitHubIssue extends GitHubIssueRef {
+  body: string;
+  state: 'open' | 'closed';
+}
+
 export interface PullRequest {
   repo: RepoName;
   number: number;
@@ -97,7 +103,8 @@ export type FlagCode =
   | 'MISSING_BACKPORT'
   | 'BACKPORT_OPEN'
   | 'NOT_LINKED_IN_JIRA'
-  | 'KEY_MISSING_IN_PR';
+  | 'KEY_MISSING_IN_PR'
+  | 'ISSUE_NOT_LINKED';
 
 export type Severity = 'error' | 'warning';
 
@@ -116,5 +123,7 @@ export interface TicketReport {
   coverage: BranchCoverage[];
   /** Repos the ticket's Jira links point to that are not selected, so their PRs were not checked. */
   otherRepoLinks: RepoName[];
+  /** GitHub issues whose title or description has the key, but that none of the ticket's PRs is linked to. */
+  unlinkedIssues: GitHubIssue[];
   flags: Flag[];
 }

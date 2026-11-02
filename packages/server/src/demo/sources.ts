@@ -3,6 +3,7 @@ import { AppError } from '../errors';
 import type { CodeHost, SprintSource, TicketSource } from '../report/ports';
 import {
   DEMO_BOARDS,
+  DEMO_ISSUES,
   DEMO_PULL_REQUESTS,
   DEMO_REPOS,
   DEMO_SPRINTS,
@@ -42,7 +43,7 @@ export const demoJira: TicketSource & SprintSource = {
   },
 };
 
-const SEARCH = /^repo:(\S+) is:pr (in:body )?"([^"]+)"$/;
+const SEARCH = /^repo:(\S+) (is:pr )?(in:body )?"([^"]+)"$/;
 
 export const demoCodeHost: CodeHost = {
   async repoInfo(repo, candidateBranches) {
@@ -63,17 +64,19 @@ export const demoCodeHost: CodeHost = {
       branchPoints: Object.fromEntries(branches.map((b) => [b, known.branchPoints[b]!])),
     };
   },
-  async searchPullRequests(queries) {
+  async search(queries) {
     await sleep(500);
     return queries.map((query) => {
-      const [, repo, inBody, term] = SEARCH.exec(query) ?? [];
-      if (!repo || !term) return [];
+      const [, repo, prsOnly, inBody, term] = SEARCH.exec(query) ?? [];
+      if (!repo || !term) return { pullRequests: [], issues: [] };
       const needle = term.toLowerCase();
-      return DEMO_PULL_REQUESTS.filter(
-        (pr) =>
-          pr.repo === repo &&
-          (inBody ? pr.body : `${pr.title}\n${pr.body}`).toLowerCase().includes(needle),
-      );
+      const matches = (item: { repo: string; title: string; body: string }) =>
+        item.repo === repo &&
+        (inBody ? item.body : `${item.title}\n${item.body}`).toLowerCase().includes(needle);
+      return {
+        pullRequests: DEMO_PULL_REQUESTS.filter(matches),
+        issues: prsOnly ? [] : DEMO_ISSUES.filter(matches),
+      };
     });
   },
   async pullRequests(repo, numbers) {

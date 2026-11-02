@@ -47,7 +47,7 @@ describe('GitHubClient.repoInfo', () => {
   });
 });
 
-describe('GitHubClient.searchPullRequests', () => {
+describe('GitHubClient.search', () => {
   it('fails instead of returning no PRs when one search in a batch fails', async () => {
     vi.stubGlobal(
       'fetch',
@@ -59,10 +59,63 @@ describe('GitHubClient.searchPullRequests', () => {
       ),
     );
     await expect(
-      new GitHubClient('token').searchPullRequests([
-        'repo:a/b is:pr "X-1"',
-        'repo:a/b is:pr "X-2"',
-      ]),
+      new GitHubClient('token').search(['repo:a/b is:pr "X-1"', 'repo:a/b is:pr "X-2"']),
     ).rejects.toThrow(/secondary rate limit/);
+  });
+});
+
+describe('GitHubClient.search results', () => {
+  it('splits PRs and issues', async () => {
+    const repository = { nameWithOwner: 'owncloud/ocis' };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        json(200, {
+          data: {
+            s0: {
+              nodes: [
+                {
+                  __typename: 'PullRequest',
+                  number: 13300,
+                  title: '[OCISDEV-1600] fix',
+                  body: '',
+                  url: 'https://github.com/owncloud/ocis/pull/13300',
+                  state: 'OPEN',
+                  mergedAt: null,
+                  headRefName: 'fix',
+                  baseRefName: 'master',
+                  author: null,
+                  repository,
+                  closingIssuesReferences: { nodes: [] },
+                },
+                {
+                  __typename: 'Issue',
+                  number: 13266,
+                  title: 'Unclear quota error',
+                  body: '## [OCISDEV-1600]',
+                  url: 'https://github.com/owncloud/ocis/issues/13266',
+                  state: 'CLOSED',
+                  repository,
+                },
+              ],
+            },
+          },
+        }),
+      ),
+    );
+
+    const [hits] = await new GitHubClient('token').search(['repo:owncloud/ocis "OCISDEV-1600"']);
+
+    expect(hits!.pullRequests.map((pr) => pr.number)).toEqual([13300]);
+    expect(hits!.issues).toEqual([
+      {
+        repo: 'owncloud/ocis',
+        number: 13266,
+        title: 'Unclear quota error',
+        body: '## [OCISDEV-1600]',
+        url: 'https://github.com/owncloud/ocis/issues/13266',
+        state: 'closed',
+      },
+    ]);
   });
 });

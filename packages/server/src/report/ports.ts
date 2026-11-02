@@ -1,4 +1,18 @@
-import type { Board, PullRequest, RepoInfo, RepoName, Sprint, Ticket } from '@ocis-dashboard/core';
+import type {
+  Board,
+  GitHubIssue,
+  PullRequest,
+  RepoInfo,
+  RepoName,
+  Sprint,
+  Ticket,
+} from '@ocis-dashboard/core';
+
+/** What one GitHub search returns: PRs and, unless the query says `is:pr`, issues. */
+export interface SearchHits {
+  pullRequests: PullRequest[];
+  issues: GitHubIssue[];
+}
 
 /** Where tickets come from (Jira). */
 export interface TicketSource {
@@ -17,7 +31,7 @@ export interface SprintSource {
 export interface CodeHost {
   /** `candidateBranches` are checked for existence; only existing ones are returned. */
   repoInfo(repo: RepoName, candidateBranches: string[]): Promise<RepoInfo>;
-  /** Runs each search query; returns one result list per query, in order. */
-  searchPullRequests(queries: string[]): Promise<PullRequest[][]>;
+  /** Runs each search query; returns one result per query, in order. */
+  search(queries: string[]): Promise<SearchHits[]>;
   pullRequests(repo: RepoName, numbers: number[]): Promise<PullRequest[]>;
 }

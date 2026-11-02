@@ -53,6 +53,7 @@ function report(partial: Partial<TicketReport>): TicketReport {
     issues: [],
     coverage: [],
     otherRepoLinks: [],
+    unlinkedIssues: [],
     flags: [],
     ...partial,
   };

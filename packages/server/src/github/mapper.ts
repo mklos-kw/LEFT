@@ -1,4 +1,9 @@
-import { normalizeRepo, type PrState, type PullRequest } from '@ocis-dashboard/core';
+import {
+  normalizeRepo,
+  type GitHubIssue,
+  type PrState,
+  type PullRequest,
+} from '@ocis-dashboard/core';
 
 /** Shape of the `PrFields` GraphQL fragment. */
 export interface GraphQLPullRequest {
@@ -41,5 +46,26 @@ export function toPullRequest(node: GraphQLPullRequest): PullRequest {
       title: issue.title,
       url: issue.url,
     })),
+  };
+}
+
+/** Shape of the `IssueFields` GraphQL fragment. */
+export interface GraphQLIssue {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  state: 'OPEN' | 'CLOSED';
+  repository: { nameWithOwner: string };
+}
+
+export function toIssue(node: GraphQLIssue): GitHubIssue {
+  return {
+    repo: normalizeRepo(node.repository.nameWithOwner),
+    number: node.number,
+    title: node.title,
+    body: node.body,
+    url: node.url,
+    state: node.state === 'CLOSED' ? 'closed' : 'open',
   };
 }

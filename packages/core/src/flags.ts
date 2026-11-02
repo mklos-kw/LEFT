@@ -68,6 +68,14 @@ const keyMissingInPr: FlagRule = ({ ticket, prs }) =>
       ),
     );
 
+const issueNotLinked: FlagRule = ({ prs, unlinkedIssues }) =>
+  // Without a live PR there's nothing to link it to; "No PR" covers that.
+  prs.some(live)
+    ? unlinkedIssues.map((issue) =>
+        flag('ISSUE_NOT_LINKED', 'error', `${issue.repo}#${issue.number} is not linked to any PR`),
+      )
+    : [];
+
 export const defaultFlagRules: FlagRule[] = [
   noPr,
   prOpen,
@@ -75,6 +83,7 @@ export const defaultFlagRules: FlagRule[] = [
   backportOpen,
   notLinkedInJira,
   keyMissingInPr,
+  issueNotLinked,
 ];
 
 export function evaluateFlags(report: FlagContext, rules: FlagRule[] = defaultFlagRules): Flag[] {

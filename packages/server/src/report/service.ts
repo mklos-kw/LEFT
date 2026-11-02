@@ -13,7 +13,7 @@ import {
 } from '@ocis-dashboard/core';
 import { chunk, mapLimit } from '../util/map-limit';
 import type { TtlCache } from '../util/ttl-cache';
-import type { CodeHost, TicketSource } from './ports';
+import type { CodeHost, SearchHits, TicketSource } from './ports';
 
 /** Parallel Jira remote-link requests per report. */
 const REMOTE_LINK_CONCURRENCY = 8;
@@ -41,7 +41,8 @@ export interface ReportServiceDeps {
   cache: TtlCache;
 }
 
-const keyQuery = (repo: RepoName, key: string) => `repo:${repo} is:pr "${key}"`;
+/** No `is:pr`: one search finds the PRs and the issues that mention the key. */
+const keyQuery = (repo: RepoName, key: string) => `repo:${repo} "${key}"`;
 const backportQuery = (repo: RepoName, number: number) => `repo:${repo} is:pr in:body "${number}"`;
 
 /**
@@ -77,7 +78,9 @@ export class ReportService {
       tickets.map((ticket) => keyQuery(repo.name, ticket.key)),
     );
     const pulls = tracker('pulls', keyQueries.length, onProgress);
-    const byKey = (await this.search(keyQueries, pulls.advance, check)).flat();
+    const keyHits = await this.search(keyQueries, pulls.advance, check);
+    const byKey = keyHits.flatMap((hits) => hits.pullRequests);
+    const issues = keyHits.flatMap((hits) => hits.issues);
     check();
     const fromLinks = (
       await Promise.all(repoInfos.map((repo) => this.linkedOnly(repo, tickets, byKey)))
@@ -98,6 +101,7 @@ export class ReportService {
         projectKey: this.deps.projectKey,
         tickets,
         pullRequests: [...byKey, ...fromLinks, ...backports],
+        issues,
         repos: repoInfos,
         branchTemplates: this.deps.branchTemplates,
       }),
@@ -182,7 +186,9 @@ export class ReportService {
       queries.forEach((query) => searched.add(query));
       progress.grow(queries.length);
 
-      const results = (await this.search(queries, progress.advance, check)).flat();
+      const results = (await this.search(queries, progress.advance, check)).flatMap(
+        (hits) => hits.pullRequests,
+      );
       check();
       const seen = new Set([...known, ...found].map((pr) => `${pr.repo}#${pr.number}`));
       sources = results.filter((pr) => !seen.has(`${pr.repo}#${pr.number}`));
@@ -196,12 +202,12 @@ export class ReportService {
     queries: string[],
     advance: Advance,
     check: () => void,
-  ): Promise<PullRequest[][]> {
+  ): Promise<SearchHits[]> {
     const cacheKey = (query: string) => `search:${query}`;
-    const results = new Map<string, Promise<PullRequest[]>>();
+    const results = new Map<string, Promise<SearchHits>>();
     const misses: string[] = [];
     for (const query of unique(queries)) {
-      const hit = this.deps.cache.peek<PullRequest[]>(cacheKey(query));
+      const hit = this.deps.cache.peek<SearchHits>(cacheKey(query));
       if (hit) results.set(query, hit);
       else misses.push(query);
     }
@@ -209,13 +215,13 @@ export class ReportService {
 
     await mapLimit(chunk(misses, SEARCH_BATCH), SEARCH_CONCURRENCY, async (batch) => {
       check();
-      const all = this.deps.code.searchPullRequests(batch);
+      const all = this.deps.code.search(batch);
       batch.forEach((query, i) => {
         results.set(
           query,
           this.deps.cache.set(
             cacheKey(query),
-            all.then((r) => r[i] ?? []),
+            all.then((r) => r[i] ?? { pullRequests: [], issues: [] }),
           ),
         );
       });

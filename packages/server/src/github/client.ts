@@ -2,9 +2,9 @@ import type { PullRequest, RepoInfo, RepoName } from '@ocis-dashboard/core';
 import { githubHeaders } from '../auth/github';
 import { AppError, UpstreamError } from '../errors';
 import { requestJson } from '../http';
-import type { CodeHost } from '../report/ports';
+import type { CodeHost, SearchHits } from '../report/ports';
 import { chunk } from '../util/map-limit';
-import { toPullRequest, type GraphQLPullRequest } from './mapper';
+import { toIssue, toPullRequest, type GraphQLIssue, type GraphQLPullRequest } from './mapper';
 
 const REST_URL = 'https://api.github.com';
 const GRAPHQL_URL = `${REST_URL}/graphql`;
@@ -21,12 +21,22 @@ const PR_FIELDS = `
     }
   }`;
 
+const ISSUE_FIELDS = `
+  fragment IssueFields on Issue {
+    number title body url state
+    repository { nameWithOwner }
+  }`;
+
 interface GraphQLResponse<T> {
   data?: T;
   errors?: { message: string; type?: string; path?: (string | number)[] }[];
 }
 
-type SearchResult = Record<string, { nodes: (GraphQLPullRequest | Record<string, never>)[] }>;
+type SearchNode =
+  | (GraphQLPullRequest & { __typename: 'PullRequest' })
+  | (GraphQLIssue & { __typename: 'Issue' })
+  | { __typename: string };
+type SearchResult = Record<string, { nodes: SearchNode[] }>;
 
 /** The part of GitHub's compare API response we use. */
 interface CompareResponse {
@@ -100,19 +110,19 @@ export class GitHubClient implements CodeHost {
     }
   }
 
-  async searchPullRequests(queries: string[]): Promise<PullRequest[][]> {
-    const results: PullRequest[][] = [];
+  async search(queries: string[]): Promise<SearchHits[]> {
+    const results: SearchHits[] = [];
     for (const batch of chunk(queries, BATCH_SIZE)) {
       const variables = Object.fromEntries(batch.map((query, i) => [`q${i}`, query]));
       const declarations = batch.map((_, i) => `$q${i}: String!`).join(', ');
       const fields = batch
         .map(
           (_, i) =>
-            `s${i}: search(query: $q${i}, type: ISSUE, first: 50) { nodes { ...PrFields } }`,
+            `s${i}: search(query: $q${i}, type: ISSUE, first: 50) { nodes { __typename ...PrFields ...IssueFields } }`,
         )
         .join('\n');
       const { data, errors } = await this.graphqlWithErrors<SearchResult>(
-        `query(${declarations}) { ${fields} } ${PR_FIELDS}`,
+        `query(${declarations}) { ${fields} } ${PR_FIELDS} ${ISSUE_FIELDS}`,
         variables,
       );
       // A failed search must not look like "no PRs": that result would be cached.
@@ -123,7 +133,10 @@ export class GitHubClient implements CodeHost {
       }
       batch.forEach((_, i) => {
         const nodes = data[`s${i}`]?.nodes ?? [];
-        results.push(nodes.filter(isPullRequest).map(toPullRequest));
+        results.push({
+          pullRequests: nodes.filter(isPullRequest).map(toPullRequest),
+          issues: nodes.filter(isIssue).map(toIssue),
+        });
       });
     }
     return results;
@@ -181,7 +194,11 @@ function refPath(branch: string): string {
 }
 
 function isPullRequest(
-  node: GraphQLPullRequest | Record<string, never>,
-): node is GraphQLPullRequest {
-  return 'number' in node;
+  node: SearchNode,
+): node is GraphQLPullRequest & { __typename: 'PullRequest' } {
+  return node.__typename === 'PullRequest';
+}
+
+function isIssue(node: SearchNode): node is GraphQLIssue & { __typename: 'Issue' } {
+  return node.__typename === 'Issue';
 }

@@ -1,0 +1,8 @@
+{
+  "name": "@ocis-dashboard/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

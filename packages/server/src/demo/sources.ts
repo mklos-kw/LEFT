@@ -1,0 +1,83 @@
+import type { Ticket } from '@ocis-dashboard/core';
+import { AppError } from '../errors';
+import type { CodeHost, SprintSource, TicketSource } from '../report/ports';
+import {
+  DEMO_BOARDS,
+  DEMO_PULL_REQUESTS,
+  DEMO_REPOS,
+  DEMO_SPRINTS,
+  DEMO_TICKETS,
+  type DemoTicket,
+} from './fixtures';
+
+/** Simulated network latency, so loading states can be seen and tested. */
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function asTicket({ sprintId: _sprintId, updated: _updated, ...ticket }: DemoTicket): Ticket {
+  return { ...ticket, remoteLinkUrls: [] };
+}
+
+const linksByKey = new Map(DEMO_TICKETS.map((ticket) => [ticket.key, ticket.remoteLinkUrls]));
+
+export const demoJira: TicketSource & SprintSource = {
+  async listBoards() {
+    await sleep(150);
+    return DEMO_BOARDS;
+  },
+  async listSprints(boardId) {
+    await sleep(200);
+    return DEMO_SPRINTS[boardId] ?? [];
+  },
+  async sprintTickets(sprintId) {
+    await sleep(400);
+    return DEMO_TICKETS.filter((ticket) => ticket.sprintId === sprintId).map(asTicket);
+  },
+  async ticketsUpdatedBetween(from, to) {
+    await sleep(400);
+    return DEMO_TICKETS.filter((t) => t.updated >= from && t.updated <= to).map(asTicket);
+  },
+  async remoteLinkUrls(key) {
+    await sleep(120);
+    return linksByKey.get(key) ?? [];
+  },
+};
+
+const SEARCH = /^repo:(\S+) is:pr (in:body )?"([^"]+)"$/;
+
+export const demoCodeHost: CodeHost = {
+  async repoInfo(repo, candidateBranches) {
+    await sleep(150);
+    const known = DEMO_REPOS[repo];
+    if (!known) {
+      throw new AppError(
+        404,
+        'repo_not_found',
+        `Demo mode only has sample data for ${Object.keys(DEMO_REPOS).join(' and ')}.`,
+      );
+    }
+    const branches = candidateBranches.filter((branch) => branch in known.branchPoints);
+    return {
+      name: repo,
+      defaultBranch: known.defaultBranch,
+      branches,
+      branchPoints: Object.fromEntries(branches.map((b) => [b, known.branchPoints[b]!])),
+    };
+  },
+  async searchPullRequests(queries) {
+    await sleep(500);
+    return queries.map((query) => {
+      const [, repo, inBody, term] = SEARCH.exec(query) ?? [];
+      if (!repo || !term) return [];
+      const needle = term.toLowerCase();
+      return DEMO_PULL_REQUESTS.filter(
+        (pr) =>
+          pr.repo === repo &&
+          (inBody ? pr.body : `${pr.title}\n${pr.body}`).toLowerCase().includes(needle),
+      );
+    });
+  },
+  async pullRequests(repo, numbers) {
+    await sleep(200);
+    return DEMO_PULL_REQUESTS.filter((pr) => pr.repo === repo && numbers.includes(pr.number));
+  },
+};

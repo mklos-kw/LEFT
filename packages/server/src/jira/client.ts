@@ -1,0 +1,130 @@
+import type { Board, Sprint, Ticket } from '@ocis-dashboard/core';
+import { jiraApiBase } from '../auth/atlassian';
+import { requestJson, type RequestOptions } from '../http';
+import type { SprintSource, TicketSource } from '../report/ports';
+import { sortSprints, toSprint, toTicket, type JiraIssue, type JiraSprint } from './mapper';
+
+const ISSUE_FIELDS = ['summary', 'status', 'issuetype', 'assignee', 'fixVersions'];
+const PAGE_SIZE = 100;
+
+interface AgilePage<T> {
+  values: T[];
+  isLast: boolean;
+}
+
+interface AgileIssuePage {
+  issues: JiraIssue[];
+  startAt: number;
+  total: number;
+}
+
+interface SearchPage {
+  issues: JiraIssue[];
+  nextPageToken?: string;
+}
+
+interface RemoteLink {
+  object?: { url?: string };
+}
+
+export interface JiraClientOptions {
+  accessToken: string;
+  cloudId: string;
+  siteUrl: string;
+  projectKey: string;
+}
+
+/** Read-only Jira Cloud client acting as the signed-in user. */
+export class JiraClient implements TicketSource, SprintSource {
+  private readonly base: string;
+
+  constructor(private readonly options: JiraClientOptions) {
+    this.base = jiraApiBase(options.cloudId);
+  }
+
+  /** Scrum boards of the project; only those have sprints. */
+  async listBoards(): Promise<Board[]> {
+    const boards = await this.agilePages<Board>(
+      `/rest/agile/1.0/board?projectKeyOrId=${encodeURIComponent(this.options.projectKey)}&type=scrum`,
+    );
+    return boards.map(({ id, name }) => ({ id, name }));
+  }
+
+  async listSprints(boardId: number): Promise<Sprint[]> {
+    const sprints = await this.agilePages<JiraSprint>(
+      `/rest/agile/1.0/board/${boardId}/sprint?state=active,future,closed`,
+    );
+    return sortSprints(sprints.map(toSprint));
+  }
+
+  async sprintTickets(sprintId: number): Promise<Ticket[]> {
+    const issues: JiraIssue[] = [];
+    let startAt = 0;
+    for (;;) {
+      const params = new URLSearchParams({
+        jql: `project = "${this.options.projectKey}"`,
+        fields: ISSUE_FIELDS.join(','),
+        startAt: String(startAt),
+        maxResults: String(PAGE_SIZE),
+      });
+      const page = await this.call<AgileIssuePage>(
+        `/rest/agile/1.0/sprint/${sprintId}/issue?${params}`,
+      );
+      issues.push(...page.issues);
+      startAt = page.startAt + page.issues.length;
+      if (page.issues.length === 0 || startAt >= page.total) break;
+    }
+    return issues.map((issue) => toTicket(issue, this.options.siteUrl));
+  }
+
+  /** Tickets updated between the inclusive `YYYY-MM-DD` dates. */
+  async ticketsUpdatedBetween(from: string, to: string): Promise<Ticket[]> {
+    const jql =
+      `project = "${this.options.projectKey}" AND updated >= "${from}" ` +
+      `AND updated < "${nextDay(to)}" ORDER BY updated DESC`;
+    const issues: JiraIssue[] = [];
+    let nextPageToken: string | undefined;
+    do {
+      const page = await this.call<SearchPage>('/rest/api/3/search/jql', {
+        json: { jql, fields: ISSUE_FIELDS, maxResults: PAGE_SIZE, nextPageToken },
+      });
+      issues.push(...page.issues);
+      nextPageToken = page.nextPageToken;
+    } while (nextPageToken);
+    return issues.map((issue) => toTicket(issue, this.options.siteUrl));
+  }
+
+  async remoteLinkUrls(issueKey: string): Promise<string[]> {
+    const links = await this.call<RemoteLink[]>(
+      `/rest/api/3/issue/${encodeURIComponent(issueKey)}/remotelink`,
+    );
+    return links.map((link) => link.object?.url).filter((url): url is string => Boolean(url));
+  }
+
+  private async agilePages<T>(path: string): Promise<T[]> {
+    const values: T[] = [];
+    const separator = path.includes('?') ? '&' : '?';
+    for (let startAt = 0; ;) {
+      const page = await this.call<AgilePage<T>>(
+        `${path}${separator}startAt=${startAt}&maxResults=50`,
+      );
+      values.push(...page.values);
+      startAt += page.values.length;
+      if (page.isLast || page.values.length === 0) return values;
+    }
+  }
+
+  /** GET by default; POST when `options.json` is set. */
+  private call<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    return requestJson<T>('atlassian', `${this.base}${path}`, {
+      ...options,
+      headers: { Authorization: `Bearer ${this.options.accessToken}`, ...options.headers },
+    });
+  }
+}
+
+function nextDay(date: string): string {
+  const day = new Date(`${date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + 1);
+  return day.toISOString().slice(0, 10);
+}

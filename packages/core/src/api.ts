@@ -1,0 +1,75 @@
+/** Contract between server and web. */
+import type { RepoInfo, TicketReport } from './types';
+
+export interface ProviderStatus {
+  connected: boolean;
+  /** Atlassian account id or GitHub login. */
+  id?: string;
+  name?: string;
+}
+
+export interface MeResponse {
+  atlassian: ProviderStatus;
+  github: ProviderStatus;
+  /** The server runs on sample data; no sign-in needed. */
+  demo: boolean;
+}
+
+export interface Board {
+  id: number;
+  name: string;
+}
+
+export interface BoardsResponse {
+  boards: Board[];
+}
+
+export type SprintState = 'active' | 'future' | 'closed';
+
+export interface Sprint {
+  id: number;
+  name: string;
+  state: SprintState;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface SprintsResponse {
+  sprints: Sprint[];
+}
+
+export type ReportSelection =
+  | { kind: 'sprint'; sprintId: number }
+  /** Inclusive `YYYY-MM-DD` dates; `from === to` for a single day. */
+  | { kind: 'dates'; from: string; to: string };
+
+export interface ReportResponse {
+  generatedAt: string;
+  /** The selected repos, in the order they were requested. */
+  repos: RepoInfo[];
+  reports: TicketReport[];
+}
+
+/** The steps of building a report, in order. */
+export const REPORT_STEPS = ['tickets', 'links', 'pulls', 'backports'] as const;
+export type ReportStep = (typeof REPORT_STEPS)[number];
+
+export interface ReportProgress {
+  step: ReportStep;
+  done: number;
+  /** 0 while the total is not known yet. */
+  total: number;
+}
+
+/** One line of the NDJSON stream from `/api/report/stream`. */
+export type ReportStreamEvent =
+  | { type: 'progress'; progress: ReportProgress }
+  | { type: 'result'; report: ReportResponse }
+  | { type: 'error'; error: ApiError };
+
+export interface ApiError {
+  error: string;
+  message: string;
+  /** Set when the user has to (re)connect a provider. */
+  provider?: 'atlassian' | 'github';
+}

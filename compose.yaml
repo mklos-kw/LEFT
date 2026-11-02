@@ -1,0 +1,15 @@
+services:
+  dashboard:
+    build: .
+    env_file:
+      - path: .env
+        # Not needed for `DEMO_MODE=true docker compose up`.
+        required: false
+    environment:
+      # The container always listens on 3000; the host port below must match PUBLIC_URL.
+      SERVER_PORT: '3000'
+      DEMO_MODE: ${DEMO_MODE:-}
+    ports:
+      # Same port as the Vite dev server, so one set of OAuth callback URLs works for both.
+      - '5173:3000'
+    restart: unless-stopped

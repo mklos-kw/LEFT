@@ -1,0 +1,16 @@
+{
+  "name": "@ocis-dashboard/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/static": "^10.1.8",
+    "@ocis-dashboard/core": "*",
+    "fastify": "^5.12.7",
+    "tsx": "^4.23.15"
+  }
+}

@@ -1,0 +1,305 @@
+import { describe, expect, it } from 'vitest';
+import { buildReports } from './report';
+import type { PullRequest, RepoInfo, Ticket } from './types';
+
+const OCIS = 'owncloud/ocis';
+const repos: RepoInfo[] = [
+  { name: OCIS, defaultBranch: 'master', branches: ['master', 'stable-9.0', 'stable-8.0'] },
+];
+
+function pr(overrides: Partial<PullRequest> & Pick<PullRequest, 'number'>): PullRequest {
+  return {
+    repo: OCIS,
+    title: '',
+    body: '',
+    headRef: `branch-${overrides.number}`,
+    baseRef: 'master',
+    state: 'merged',
+    mergedAt: '2026-10-20T10:00:00Z',
+    url: `https://github.com/${OCIS}/pull/${overrides.number}`,
+    author: 'dev',
+    closingIssues: [],
+    ...overrides,
+  };
+}
+
+function ticket(overrides: Partial<Ticket> & Pick<Ticket, 'key'>): Ticket {
+  return {
+    summary: '',
+    status: 'Done',
+    issueType: 'Bug',
+    url: `https://example.atlassian.net/browse/${overrides.key}`,
+    assignee: null,
+    fixVersions: [],
+    remoteLinkUrls: [],
+    ...overrides,
+  };
+}
+
+const link = (number: number) => `https://github.com/${OCIS}/pull/${number}`;
+
+// Real data for OCISDEV-1464 as of 2026-10-30: #13255 is not linked in Jira.
+const ocisdev1464 = ticket({
+  key: 'OCISDEV-1464',
+  fixVersions: ['Frances - 9.0.0'],
+  remoteLinkUrls: [link(13250), link(13231), link(13247)],
+});
+const ocisdev1464Prs = [
+  pr({ number: 13231, title: 'feat: [OCISDEV-1464] Assign multi-instance guests a role' }),
+  pr({ number: 13250, title: 'fix(proxy): [OCISDEV-1464] fix the role assignment' }),
+  pr({
+    number: 13247,
+    baseRef: 'stable-9.0',
+    title: 'feat: [backport][OCISDEV-1464] show previews for files in shared folders',
+    body: 'Backport of #13231 to stable-9.0.',
+  }),
+  pr({
+    number: 13255,
+    baseRef: 'stable-9.0',
+    title: 'fix(web): [backport][OCISDEV-1464] load previews lazily',
+    body: 'This pull request is a backport of #13250 to `stable-9.0`.',
+  }),
+];
+
+function reportFor(tickets: Ticket[], pullRequests: PullRequest[]) {
+  return buildReports({ projectKey: 'OCISDEV', tickets, pullRequests, repos });
+}
+
+describe('buildReports', () => {
+  it('links master PRs and backports and flags the backport missing in Jira', () => {
+    const [report] = reportFor([ocisdev1464], ocisdev1464Prs);
+
+    expect(report!.prs.map((linked) => linked.pr.number).sort()).toEqual([
+      13231, 13247, 13250, 13255,
+    ]);
+    expect(report!.coverage).toEqual([
+      {
+        repo: OCIS,
+        branch: 'stable-9.0',
+        required: true,
+        status: 'merged',
+        prNumbers: [13247, 13255],
+      },
+    ]);
+    expect(report!.flags).toEqual([
+      {
+        code: 'NOT_LINKED_IN_JIRA',
+        severity: 'error',
+        message: 'owncloud/ocis#13255 not linked in Jira',
+      },
+    ]);
+  });
+
+  it('flags a ticket without PRs', () => {
+    const [report] = reportFor([ticket({ key: 'OCISDEV-1560' })], ocisdev1464Prs);
+    expect(report!.flags.map((flag) => flag.code)).toEqual(['NO_PR']);
+  });
+
+  it('flags a required backport that does not exist', () => {
+    const t = ticket({
+      key: 'OCISDEV-1548',
+      fixVersions: ['Frances - 9.0.0', 'Curie S9 - 8.0.10'],
+      remoteLinkUrls: [link(1)],
+    });
+    const prs = [
+      pr({ number: 1, title: '[OCISDEV-1548] fix' }),
+      pr({ number: 2, title: '[OCISDEV-1548] fix', baseRef: 'stable-9.0', state: 'open' }),
+    ];
+    const [report] = reportFor([t], prs);
+
+    expect(report!.coverage.map(({ branch, status }) => [branch, status])).toEqual([
+      ['stable-9.0', 'open'],
+      ['stable-8.0', 'missing'],
+    ]);
+    expect(report!.flags.map((flag) => flag.code)).toEqual([
+      'MISSING_BACKPORT',
+      'BACKPORT_OPEN',
+      'NOT_LINKED_IN_JIRA',
+    ]);
+  });
+
+  it('does not expect backports for fixVersions without a number or missing branches', () => {
+    const t = ticket({
+      key: 'OCISDEV-1',
+      fixVersions: ['Ghez', 'Darwin - 10.0.0'],
+      remoteLinkUrls: [link(1)],
+    });
+    const [report] = reportFor([t], [pr({ number: 1, title: '[OCISDEV-1] x' })]);
+    expect(report!.coverage).toEqual([]);
+    expect(report!.flags).toEqual([]);
+  });
+
+  it('links a keyless backport through its body and flags the missing key', () => {
+    const t = ticket({ key: 'OCISDEV-2', remoteLinkUrls: [link(1), link(2)] });
+    const prs = [
+      pr({ number: 1, title: '[OCISDEV-2] bump go-jose' }),
+      pr({
+        number: 2,
+        title: '[backport] bump go-jose',
+        baseRef: 'stable-9.0',
+        body: 'backports: #1',
+      }),
+    ];
+    const [report] = reportFor([t], prs);
+
+    const backport = report!.prs.find((linked) => linked.pr.number === 2)!;
+    expect(backport.sources).toEqual(['jira-link', 'backport-of']);
+    expect(backport.isBackport).toBe(true);
+    expect(report!.flags.map((flag) => flag.code)).toEqual(['KEY_MISSING_IN_PR']);
+  });
+
+  it('treats a key that only appears in the body as a mention', () => {
+    const t = ticket({ key: 'OCISDEV-3' });
+    const [report] = reportFor(
+      [t],
+      [pr({ number: 1, title: 'other', body: 'related to OCISDEV-3' })],
+    );
+    expect(report!.prs).toEqual([]);
+    expect(report!.mentions.map((mention) => mention.number)).toEqual([1]);
+  });
+
+  it('ignores PRs from repos that are not selected', () => {
+    const t = ticket({ key: 'OCISDEV-4' });
+    const [report] = reportFor(
+      [t],
+      [pr({ number: 1, repo: 'owncloud/reva', title: '[OCISDEV-4] x' })],
+    );
+    expect(report!.prs).toEqual([]);
+  });
+
+  it('does not treat a PR into a feature branch as a backport', () => {
+    const t = ticket({ key: 'OCISDEV-5', remoteLinkUrls: [link(1)] });
+    const prs = [
+      pr({ number: 1, title: '[OCISDEV-5] new UI', baseRef: 'feature/new-ui', state: 'open' }),
+    ];
+    const [report] = reportFor([t], prs);
+
+    expect(report!.prs[0]!.isBackport).toBe(false);
+    expect(report!.coverage).toEqual([]);
+    expect(report!.flags.map((flag) => flag.code)).toEqual(['PR_OPEN']);
+  });
+
+  it('treats a PR into a non-release branch as a backport when it says so', () => {
+    const t = ticket({ key: 'OCISDEV-6', remoteLinkUrls: [link(1), link(2)] });
+    const prs = [
+      pr({ number: 1, title: '[OCISDEV-6] fix' }),
+      pr({ number: 2, title: '[OCISDEV-6] fix', baseRef: 'hotfix-9.0.1', body: 'Backport of #1' }),
+    ];
+    const [report] = reportFor([t], prs);
+    expect(report!.prs.find((l) => l.pr.number === 2)!.isBackport).toBe(true);
+  });
+
+  it('does not ask to link or key PRs that were closed without merging', () => {
+    const t = ticket({ key: 'OCISDEV-683', remoteLinkUrls: [link(1)] });
+    const prs = [
+      pr({ number: 1, title: '[OCISDEV-683] fix' }),
+      pr({ number: 2, title: '[OCISDEV-683] superseded attempt', state: 'closed', mergedAt: null }),
+    ];
+    const [report] = reportFor([t], prs);
+    expect(report!.prs.map((linked) => linked.pr.number)).toEqual([1, 2]);
+    expect(report!.flags).toEqual([]);
+  });
+
+  it('names the unselected repos that Jira links to when no PR is found', () => {
+    const t = ticket({
+      key: 'OCISDEV-267',
+      remoteLinkUrls: ['https://github.com/owncloud/web/pull/12000'],
+    });
+    const [report] = reportFor([t], []);
+    expect(report!.otherRepoLinks).toEqual(['owncloud/web']);
+    expect(report!.flags[0]!.message).toBe(
+      'No PR in the selected repositories; Jira links PRs in owncloud/web',
+    );
+  });
+});
+
+// Real case: #11152 was merged into master on 2025-07-24, stable-8.1 was cut on 2026-05-22.
+describe('buildReports with branch points', () => {
+  const branched: RepoInfo[] = [
+    {
+      name: OCIS,
+      defaultBranch: 'master',
+      branches: ['stable-8.1'],
+      branchPoints: { 'stable-8.1': '2026-05-22T20:29:46Z' },
+    },
+  ];
+  const ocisdev33 = ticket({
+    key: 'OCISDEV-33',
+    fixVersions: ['Deledda - 8.1.0'],
+    remoteLinkUrls: [`https://github.com/${OCIS}/pull/11152`],
+  });
+  const build = (mergedAt: string) =>
+    buildReports({
+      projectKey: 'OCISDEV',
+      tickets: [ocisdev33],
+      pullRequests: [pr({ number: 11152, title: '[OCISDEV-33] k8s tests', mergedAt })],
+      repos: branched,
+    })[0]!;
+
+  it('counts a fix merged before the branch was cut as included, not missing', () => {
+    const report = build('2025-07-24T06:30:16Z');
+    expect(report.coverage).toEqual([
+      {
+        repo: OCIS,
+        branch: 'stable-8.1',
+        required: true,
+        status: 'included',
+        prNumbers: [11152],
+        branchPoint: '2026-05-22T20:29:46Z',
+      },
+    ]);
+    expect(report.flags).toEqual([]);
+  });
+
+  const withFollowUp = (followUp: Partial<PullRequest>) =>
+    buildReports({
+      projectKey: 'OCISDEV',
+      tickets: [ocisdev33],
+      pullRequests: [
+        pr({ number: 11152, title: '[OCISDEV-33] k8s tests', mergedAt: '2025-07-24T06:30:16Z' }),
+        pr({ number: 11200, title: '[OCISDEV-33] follow-up', ...followUp }),
+      ],
+      repos: branched,
+    })[0]!;
+
+  it('asks for a backport when a follow-up was merged after the branch was cut', () => {
+    const report = withFollowUp({ mergedAt: '2026-06-01T00:00:00Z' });
+    expect(report.coverage[0]!.status).toBe('missing');
+    expect(report.flags.map((flag) => flag.code)).toContain('MISSING_BACKPORT');
+  });
+
+  it('is not included while a follow-up is still open on master', () => {
+    const report = withFollowUp({ state: 'open', mergedAt: null });
+    expect(report.coverage[0]!.status).toBe('missing');
+  });
+
+  it('ignores follow-ups closed without merging', () => {
+    const report = withFollowUp({ state: 'closed', mergedAt: null });
+    expect(report.coverage[0]!.status).toBe('included');
+  });
+
+  it('still asks for a backport when the fix was merged after the branch was cut', () => {
+    const report = build('2026-06-01T00:00:00Z');
+    expect(report.coverage[0]!.status).toBe('missing');
+    expect(report.flags.map((flag) => flag.code)).toEqual(['MISSING_BACKPORT']);
+  });
+});
+
+describe('PRs into feature branches', () => {
+  it('does not count a merged feature-branch PR as merged on master', () => {
+    const [report] = buildReports({
+      projectKey: 'OCISDEV',
+      tickets: [ticket({ key: 'OCISDEV-50' })],
+      pullRequests: [
+        pr({ number: 1, title: '[OCISDEV-50] part 1', baseRef: 'feature/new-ui' }),
+        pr({ number: 2, title: '[OCISDEV-50] land it', state: 'open', mergedAt: null }),
+      ],
+      repos: [{ name: OCIS, defaultBranch: 'master', branches: [] }],
+    });
+    expect(report!.prs.map((l) => [l.pr.number, l.intoDefault])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+    expect(report!.flags.map((flag) => flag.code)).toContain('PR_OPEN');
+  });
+});

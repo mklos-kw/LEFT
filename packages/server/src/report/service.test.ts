@@ -10,6 +10,7 @@ const ticket: Ticket = {
   key: 'OCISDEV-1464',
   summary: 'Multi-instance guest roles',
   status: 'Done',
+  statusCategory: 'done',
   issueType: 'Bug',
   url: 'https://example.atlassian.net/browse/OCISDEV-1464',
   assignee: null,

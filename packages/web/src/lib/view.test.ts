@@ -1,6 +1,6 @@
 import type { BranchCoverage, TicketReport } from '@ocis-dashboard/core';
 import { describe, expect, it } from 'vitest';
-import { branchOptions, filterReports, sortDate, sortReports } from './view';
+import { branchOptions, doneButUnfinished, filterReports, sortDate, sortReports } from './view';
 
 const OCIS = 'owncloud/ocis';
 
@@ -10,6 +10,7 @@ function report(key: string, coverage: Partial<BranchCoverage>[]): TicketReport 
       key,
       summary: '',
       status: '',
+      statusCategory: 'todo',
       issueType: '',
       url: '',
       assignee: null,
@@ -120,5 +121,27 @@ describe('sortReports', () => {
 
   it('sorts by the latest PR activity, open PRs included', () => {
     expect(keys('activity')).toEqual(['OCISDEV-3', 'OCISDEV-2', 'OCISDEV-1']);
+  });
+});
+
+describe('doneButUnfinished', () => {
+  const withFlags = (statusCategory: 'done' | 'progress', severities: ('error' | 'warning')[]) => {
+    const base = report('OCISDEV-9', []);
+    return {
+      ...base,
+      ticket: { ...base.ticket, statusCategory },
+      flags: severities.map((severity) => ({ code: 'NO_PR' as const, severity, message: '' })),
+    };
+  };
+
+  it('counts what is left to fix on a done ticket', () => {
+    expect(doneButUnfinished(withFlags('done', ['error']))).toBe('1 problem');
+    expect(doneButUnfinished(withFlags('done', ['error', 'error', 'warning']))).toBe('2 problems');
+  });
+
+  it('says nothing for open tickets, clean tickets, or only waiting problems', () => {
+    expect(doneButUnfinished(withFlags('progress', ['error']))).toBeUndefined();
+    expect(doneButUnfinished(withFlags('done', []))).toBeUndefined();
+    expect(doneButUnfinished(withFlags('done', ['warning']))).toBeUndefined();
   });
 });

@@ -19,6 +19,7 @@ function report(key: string, flags: Flag[]): TicketReport {
       key,
       summary: '',
       status: '',
+      statusCategory: 'todo',
       issueType: '',
       url: '',
       assignee: null,

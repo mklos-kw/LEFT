@@ -1,10 +1,21 @@
 <script setup lang="ts">
-import type { GitHubIssueRef, MatchSource, TicketReport } from '@ocis-dashboard/core';
-import { computed } from 'vue';
-import { FLAGS } from '../lib/view';
+import type { FlagAction, GitHubIssueRef, TicketReport } from '@ocis-dashboard/core';
+import { computed, ref } from 'vue';
+import { FLAGS, SOURCE_TEXT } from '../lib/view';
 
 /** Explains the row: what to fix, what each PR is and why it belongs to the ticket. */
 const props = defineProps<{ report: TicketReport }>();
+
+/** The URL just copied, so its button can say so for a moment. */
+const copied = ref<string>();
+
+async function copy(action: FlagAction) {
+  await navigator.clipboard.writeText(action.url);
+  copied.value = action.url;
+  setTimeout(() => {
+    if (copied.value === action.url) copied.value = undefined;
+  }, 2000);
+}
 
 /** Linked and unlinked issues in one list, each issue once. */
 const issues = computed(() => {
@@ -13,13 +24,6 @@ const issues = computed(() => {
   for (const issue of props.report.issues) byUrl.set(issue.url, { issue, linked: true });
   return [...byUrl.values()];
 });
-
-const SOURCE_TEXT: Record<MatchSource, string> = {
-  title: 'key in the title',
-  branch: 'key in the branch name',
-  'jira-link': 'linked from Jira',
-  'backport-of': 'says it backports a PR of this ticket',
-};
 </script>
 
 <template>
@@ -36,6 +40,14 @@ const SOURCE_TEXT: Record<MatchSource, string> = {
           :data-tone="flag.severity === 'error' ? 'fix' : 'wait'"
         >
           <strong>{{ flag.message }}.</strong> {{ FLAGS[flag.code].hint }}
+          <span v-if="flag.actions" class="flag-actions">
+            <template v-for="action in flag.actions" :key="action.label">
+              <button v-if="action.copy" class="inline-button" @click="copy(action)">
+                {{ copied === action.url ? 'Copied' : action.label }}
+              </button>
+              <a v-else :href="action.url" target="_blank" rel="noreferrer">{{ action.label }}</a>
+            </template>
+          </span>
         </li>
       </ul>
     </section>

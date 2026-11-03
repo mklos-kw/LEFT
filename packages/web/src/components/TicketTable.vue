@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import type { FlagCode, RepoInfo } from '@ocis-dashboard/core';
-import { ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { branchRows } from '../lib/branches';
 import { formatRange } from '../lib/format';
 import type { MarkedReport } from '../lib/marks';
-import { FLAGS, isWait, SORT_LABELS, sortDate, uniqueFlagCodes, type SortKey } from '../lib/view';
+import {
+  doneButUnfinished,
+  FLAGS,
+  isWait,
+  SORT_LABELS,
+  sortDate,
+  uniqueFlagCodes,
+  type SortKey,
+} from '../lib/view';
 import BranchList from './BranchList.vue';
 import TicketDetails from './TicketDetails.vue';
 
@@ -30,6 +38,14 @@ function toggle(key: string) {
 function expand(key: string) {
   if (!expanded.value.has(key)) toggle(key);
 }
+
+// Esc closes open details (unless you're typing somewhere, where Esc means something else).
+function onKey(event: KeyboardEvent) {
+  const typing = (event.target as HTMLElement | null)?.closest('input, select, textarea');
+  if (event.key === 'Escape' && !typing && expanded.value.size > 0) expanded.value = new Set();
+}
+onMounted(() => window.addEventListener('keydown', onKey));
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
 /** Problem chips: the ticket's flags, or for a marked ticket the ones set aside. */
 function chipCodes(report: MarkedReport): FlagCode[] {
@@ -69,9 +85,24 @@ function severity(report: MarkedReport): 'fix' | 'wait' | 'ok' {
               >
               <span class="ticket-summary">{{ report.ticket.summary }}</span>
               <span class="ticket-meta">
-                <span>{{ report.ticket.status }}</span>
-                <span>{{ report.ticket.assignee?.name ?? 'Unassigned' }}</span>
-                <span v-if="report.ticket.fixVersions.length > 0">
+                <span
+                  class="status-chip"
+                  :data-category="report.ticket.statusCategory"
+                  :data-unfinished="!!doneButUnfinished(report)"
+                  :title="
+                    doneButUnfinished(report)
+                      ? 'Done in Jira, but something is still missing on GitHub or in Jira'
+                      : `Jira status`
+                  "
+                  >{{ report.ticket.status
+                  }}<template v-if="doneButUnfinished(report)">
+                    · {{ doneButUnfinished(report) }}</template
+                  ></span
+                >
+                <span class="assignee" :data-unassigned="!report.ticket.assignee">{{
+                  report.ticket.assignee?.name ?? 'Unassigned'
+                }}</span>
+                <span v-if="report.ticket.fixVersions.length > 0" class="fix-version">
                   {{ report.ticket.fixVersions.join(', ') }}
                 </span>
                 <span v-if="sort !== 'jira'" class="sort-date">
@@ -105,12 +136,6 @@ function severity(report: MarkedReport): 'fix' | 'wait' | 'ok' {
                   You marked this fixed on {{ formatRange(report.mark.at) }}, but it has a new
                   problem since.
                 </p>
-                <button
-                  class="quiet-button mark-button"
-                  @click="$emit('markFixed', report.ticket.key)"
-                >
-                  Mark fixed
-                </button>
               </template>
               <p v-if="report.otherRepoLinks.length > 0" class="other-repos">
                 Jira links PRs in
@@ -125,13 +150,22 @@ function severity(report: MarkedReport): 'fix' | 'wait' | 'ok' {
                   ><span class="visually-hidden"> (add to selection)</span>
                 </template>
               </p>
-              <button
-                class="details-toggle"
-                :aria-expanded="expanded.has(report.ticket.key)"
-                @click="toggle(report.ticket.key)"
-              >
-                {{ expanded.has(report.ticket.key) ? 'Hide details' : 'Details' }}
-              </button>
+              <div class="row-actions">
+                <button
+                  class="details-toggle"
+                  :aria-expanded="expanded.has(report.ticket.key)"
+                  @click="toggle(report.ticket.key)"
+                >
+                  {{ expanded.has(report.ticket.key) ? 'Hide details' : 'Details' }}
+                </button>
+                <button
+                  v-if="report.flags.length > 0 && report.mark?.state !== 'active'"
+                  class="inline-button"
+                  @click="$emit('markFixed', report.ticket.key)"
+                >
+                  Mark fixed
+                </button>
+              </div>
             </td>
           </tr>
           <tr v-if="expanded.has(report.ticket.key)" class="details-row">

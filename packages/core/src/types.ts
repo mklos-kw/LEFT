@@ -6,10 +6,14 @@ export interface Person {
   name: string;
 }
 
+export type StatusCategory = 'todo' | 'progress' | 'done';
+
 export interface Ticket {
   key: string;
   summary: string;
   status: string;
+  /** Jira's grouping of the status: To Do, In Progress (incl. review, QA) or Done. */
+  statusCategory: StatusCategory;
   issueType: string;
   url: string;
   assignee: Person | null;
@@ -113,10 +117,19 @@ export type FlagCode =
 
 export type Severity = 'error' | 'warning';
 
+/** A link next to a problem that takes you where to fix it. */
+export interface FlagAction {
+  label: string;
+  url: string;
+  /** Copy the URL instead of opening it (e.g. a PR link to paste into Jira). */
+  copy?: boolean;
+}
+
 export interface Flag {
   code: FlagCode;
   severity: Severity;
   message: string;
+  actions?: FlagAction[];
 }
 
 export interface TicketReport {

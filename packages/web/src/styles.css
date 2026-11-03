@@ -11,7 +11,8 @@
   --surface: #ffffff;
   --ink: #14213d;
   --ink-2: #4a5873;
-  --ink-3: #7c879b;
+  /* 4.5:1 or more on surface and paper, so small grey text stays readable. */
+  --ink-3: #646e82;
   --rule: #d5dce5;
   --rule-strong: #b7c2d0;
   --merged: #2f8f6b;
@@ -49,7 +50,7 @@
     --surface: #16213a;
     --ink: #e6ebf3;
     --ink-2: #a9b4c8;
-    --ink-3: #75819a;
+    --ink-3: #8591a8;
     --rule: #26334d;
     --rule-strong: #34446a;
     --merged: #4fbf94;
@@ -68,7 +69,7 @@
   --surface: #16213a;
   --ink: #e6ebf3;
   --ink-2: #a9b4c8;
-  --ink-3: #75819a;
+  --ink-3: #8591a8;
   --rule: #26334d;
   --rule-strong: #34446a;
   --merged: #4fbf94;
@@ -240,6 +241,7 @@ button:disabled {
 }
 
 .demo-badge {
+  white-space: nowrap;
   padding: 2px 10px;
   border-radius: 999px;
   background: var(--waiting-tint);
@@ -348,12 +350,15 @@ button:disabled {
   gap: 8px;
 }
 
-.filters {
-  margin-left: auto;
+/* A filter that hides tickets is tinted, so a filtered list is never mistaken for all of it. */
+.filters [data-active='true'] {
+  border-color: var(--action);
+  background: var(--action-tint);
+  font-weight: 560;
 }
 
 .filters input[type='search'] {
-  width: 220px;
+  width: 240px;
 }
 
 .segmented {
@@ -445,28 +450,49 @@ button:disabled {
   gap: 4px 16px;
 }
 
+/* The sprint is the label; the sentence under it is the answer, and the one bold element. */
 .headline h1 {
-  font-size: var(--text-xxl);
-  font-weight: 820;
-  letter-spacing: -0.035em;
-  line-height: 1;
+  font-size: var(--text-l);
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .headline-subtitle {
   color: var(--ink-2);
-  font-size: var(--text-l);
+  font-size: var(--text-m);
 }
 
 .headline-sentence {
-  margin-top: 10px;
-  font-size: var(--text-l);
+  margin-top: 6px;
+  font-size: var(--text-xxl);
+  font-weight: 820;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
 }
 
+.filter-note {
+  margin-top: 10px;
+  color: var(--ink-2);
+}
+
+.filter-note .inline-button {
+  margin-left: 6px;
+  font-weight: 560;
+}
+
+/* Groups: all/attention, then things to fix, then things to wait for. */
 .problem-pills {
   display: flex;
   flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 20px;
+}
+
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-top: 18px;
 }
 
 .problem-pill {
@@ -506,9 +532,18 @@ button:disabled {
 
 /* ---- Loading ------------------------------------------------------------- */
 
-/* Freshness/progress line above the table. */
+/* Filters for the table, and its freshness/progress line. */
 .table-toolbar {
-  margin: 16px 0 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin: 20px 0 8px;
+}
+
+.table-toolbar .load-status.loading {
+  flex-basis: 100%;
 }
 
 .load-status {
@@ -650,10 +685,52 @@ button:disabled {
 .ticket-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px 14px;
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: var(--text-s);
   color: var(--ink-3);
+}
+
+/*
+ * Jira status. Colour stays reserved for where the fix is, so progress shows as
+ * fill: outline for to do, light fill while in progress, darker fill when done.
+ */
+.status-chip {
+  padding: 0 7px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.status-chip[data-category='progress'] {
+  border-color: var(--rule);
+  background: var(--rule);
+}
+
+.status-chip[data-category='done'] {
+  border-color: var(--rule-strong);
+  background: var(--rule-strong);
+}
+
+/* Done in Jira, but something is still missing: the case this page exists to catch. */
+.status-chip[data-unfinished='true'] {
+  border-color: var(--missing);
+  background: var(--missing-tint);
+  color: var(--missing);
+}
+
+.assignee {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.assignee[data-unassigned='true'] {
+  color: var(--ink-3);
+  font-weight: 400;
 }
 
 /* Where the fix is: one short line per branch this ticket touches. */
@@ -783,18 +860,31 @@ button:disabled {
   color: var(--action);
 }
 
-.mark-button {
-  margin-top: 6px;
-}
-
 .other-repos {
   margin-top: 6px;
   font-size: var(--text-s);
   color: var(--ink-2);
 }
 
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: var(--text-s);
+}
+
+.flag-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-left: 8px;
+  font-size: var(--text-s);
+  font-weight: 560;
+}
+
 .details-toggle {
-  margin-top: 6px;
   padding: 0;
   border: none;
   background: none;
@@ -924,11 +1014,7 @@ button:disabled {
     padding: 0 16px 48px;
   }
 
-  .filters {
-    margin-left: 0;
-  }
-
-  .headline h1 {
+  .headline-sentence {
     font-size: var(--text-xl);
   }
 
@@ -946,6 +1032,13 @@ button:disabled {
     height: auto;
     padding: 14px 0;
     gap: 10px;
+  }
+}
+
+/* Phones: the tagline would wrap the top bar onto two lines. */
+@media (max-width: 480px) {
+  .wordmark-light {
+    display: none;
   }
 }
 

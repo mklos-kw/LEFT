@@ -1,5 +1,5 @@
 /** Contract between server and web. */
-import type { RepoInfo, TicketReport } from './types';
+import type { RepoInfo, Ticket, TicketReport } from './types';
 
 export interface ProviderStatus {
   connected: boolean;
@@ -64,6 +64,8 @@ export interface ReportProgress {
 /** One line of the NDJSON stream from `/api/report/stream`. */
 export type ReportStreamEvent =
   | { type: 'progress'; progress: ReportProgress }
+  /** The Jira tickets, sent as soon as they are loaded so the list shows while GitHub is checked. */
+  | { type: 'tickets'; tickets: Ticket[] }
   | { type: 'result'; report: ReportResponse }
   | { type: 'error'; error: ApiError };
 

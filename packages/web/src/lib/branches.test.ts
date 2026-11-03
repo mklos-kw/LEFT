@@ -43,6 +43,7 @@ function report(partial: Partial<TicketReport>): TicketReport {
       key: 'OCISDEV-1',
       summary: '',
       status: '',
+      statusCategory: 'todo',
       issueType: '',
       url: '',
       assignee: null,

@@ -9,8 +9,13 @@ const props = defineProps<{
   subtitle?: string;
   /** Tickets after the other filters, before the problem filter; undefined until loaded. */
   reports?: MarkedReport[];
+  /** All loaded tickets, before any filter. */
+  total: number;
+  /** What the active filters keep, e.g. "assigned to you"; undefined when none is on. */
+  filterNote?: string;
 }>();
 const problem = defineModel<ProblemFilter>('problem', { required: true });
+defineEmits<{ clearFilters: [] }>();
 
 const counts = computed(() => flagCounts(props.reports ?? []));
 const attention = computed(() => (props.reports ?? []).filter((r) => r.flags.length > 0).length);
@@ -20,15 +25,15 @@ const marked = computed(
 const sentence = computed(() => {
   const total = props.reports?.length ?? 0;
   if (total === 0) return 'No tickets.';
-  const byHand = marked.value > 0 ? ` (${marked.value} marked fixed by you)` : '';
-  if (attention.value === 0)
-    return `All ${plural(total, 'ticket')} are linked and backported${byHand}.`;
-  return `${attention.value} of ${plural(total, 'ticket')} need attention${byHand}.`;
+  if (attention.value === 0) return `All ${plural(total, 'ticket')} are linked and backported.`;
+  return `${attention.value} of ${plural(total, 'ticket')} need attention.`;
 });
 
-const visibleFlags = computed(() =>
-  FLAG_ORDER.filter((code) => (counts.value.get(code) ?? 0) > 0 || problem.value === code),
-);
+// Things to fix first, then things to wait for, with a gap between the two groups.
+const present = (code: (typeof FLAG_ORDER)[number]) =>
+  (counts.value.get(code) ?? 0) > 0 || problem.value === code;
+const fixFlags = computed(() => FLAG_ORDER.filter((code) => !isWait(code) && present(code)));
+const waitFlags = computed(() => FLAG_ORDER.filter((code) => isWait(code) && present(code)));
 
 function choose(value: ProblemFilter) {
   problem.value = problem.value === value ? 'all' : value;
@@ -43,36 +48,58 @@ function choose(value: ProblemFilter) {
     </div>
     <template v-if="reports">
       <p class="headline-sentence">{{ sentence }}</p>
+      <p v-if="filterNote" class="filter-note">
+        Showing {{ reports.length }} of {{ plural(total, 'ticket') }}: {{ filterNote }}.
+        <button class="inline-button" @click="$emit('clearFilters')">Clear filters</button>
+      </p>
+      <p v-if="marked > 0" class="filter-note">{{ marked }} marked fixed by you.</p>
       <div class="problem-pills" role="group" aria-label="Show tickets">
-        <button class="problem-pill" :aria-pressed="problem === 'all'" @click="problem = 'all'">
-          All tickets <span class="count">{{ reports.length }}</span>
-        </button>
-        <button
-          class="problem-pill"
-          :aria-pressed="problem === 'attention'"
-          :disabled="attention === 0 && problem !== 'attention'"
-          @click="choose('attention')"
-        >
-          Need attention <span class="count">{{ attention }}</span>
-        </button>
-        <button
-          v-for="code in visibleFlags"
-          :key="code"
-          class="problem-pill"
-          :data-tone="isWait(code) ? 'wait' : 'fix'"
-          :aria-pressed="problem === code"
-          @click="choose(code)"
-        >
-          {{ FLAGS[code].label }} <span class="count">{{ counts.get(code) ?? 0 }}</span>
-        </button>
-        <button
-          v-if="marked > 0 || problem === 'marked'"
-          class="problem-pill"
-          :aria-pressed="problem === 'marked'"
-          @click="choose('marked')"
-        >
-          Marked fixed <span class="count">{{ marked }}</span>
-        </button>
+        <span class="pill-group">
+          <button class="problem-pill" :aria-pressed="problem === 'all'" @click="problem = 'all'">
+            All tickets <span class="count">{{ reports.length }}</span>
+          </button>
+          <button
+            class="problem-pill"
+            :aria-pressed="problem === 'attention'"
+            :disabled="attention === 0 && problem !== 'attention'"
+            @click="choose('attention')"
+          >
+            Need attention <span class="count">{{ attention }}</span>
+          </button>
+        </span>
+        <span v-if="fixFlags.length > 0" class="pill-group">
+          <button
+            v-for="code in fixFlags"
+            :key="code"
+            class="problem-pill"
+            data-tone="fix"
+            :aria-pressed="problem === code"
+            @click="choose(code)"
+          >
+            {{ FLAGS[code].label }} <span class="count">{{ counts.get(code) ?? 0 }}</span>
+          </button>
+        </span>
+        <span v-if="waitFlags.length > 0" class="pill-group">
+          <button
+            v-for="code in waitFlags"
+            :key="code"
+            class="problem-pill"
+            data-tone="wait"
+            :aria-pressed="problem === code"
+            @click="choose(code)"
+          >
+            {{ FLAGS[code].label }} <span class="count">{{ counts.get(code) ?? 0 }}</span>
+          </button>
+        </span>
+        <span v-if="marked > 0 || problem === 'marked'" class="pill-group">
+          <button
+            class="problem-pill"
+            :aria-pressed="problem === 'marked'"
+            @click="choose('marked')"
+          >
+            Marked fixed <span class="count">{{ marked }}</span>
+          </button>
+        </span>
       </div>
     </template>
   </section>

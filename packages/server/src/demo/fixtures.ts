@@ -59,10 +59,12 @@ function ticket(
   summary: string,
   details: Partial<Omit<DemoTicket, 'key' | 'summary'>>,
 ): DemoTicket {
+  const status = details.status ?? 'Done';
   return {
     key,
     summary,
-    status: 'Done',
+    status,
+    statusCategory: status === 'Done' ? 'done' : status === 'To Do' ? 'todo' : 'progress',
     issueType: 'Bug',
     url: `https://example.atlassian.net/browse/${key}`,
     assignee: null,

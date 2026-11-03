@@ -3,6 +3,7 @@ import type {
   ReportProgress,
   ReportResponse,
   ReportSelection,
+  Ticket,
 } from '@ocis-dashboard/core';
 import { computed, ref, shallowRef, watch, type Ref } from 'vue';
 import { api } from '../api';
@@ -22,6 +23,8 @@ export interface ReportState {
   data?: ReportResponse;
   /** Progress of the running request. */
   progress?: ReportProgress;
+  /** The Jira tickets of the running request, shown while GitHub is still being checked. */
+  tickets?: Ticket[];
   error?: Error;
 }
 
@@ -58,13 +61,18 @@ export function useReport(request: () => ReportRequest | null): {
       const refresh = bypassCacheOnce;
       bypassCacheOnce = false;
 
+      let tickets: Ticket[] | undefined;
       state.value = { status: 'loading', data };
       api
         .report(current.selection, current.repos, {
           refresh,
           signal: controller.signal,
           onProgress: (progress) => {
-            if (live()) state.value = { status: 'loading', data, progress };
+            if (live()) state.value = { status: 'loading', data, progress, tickets };
+          },
+          onTickets: (loaded) => {
+            tickets = loaded;
+            if (live()) state.value = { ...state.value, tickets };
           },
         })
         .then(

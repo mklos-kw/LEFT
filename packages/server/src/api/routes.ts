@@ -74,6 +74,7 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
       .build(selection, repos, {
         signal,
         onProgress: (progress) => emit({ type: 'progress', progress }),
+        onTickets: (tickets) => emit({ type: 'tickets', tickets }),
       })
       .then((report) => emit({ type: 'result', report }))
       .catch((error: unknown) => {

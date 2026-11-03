@@ -172,13 +172,23 @@ OAuth callback URLs work for both.
 
   Long PR lists show two PRs and "N more"; **Details** lists them all.
 
-- **Filters:**
-  - The counts under the title filter by problem.
+- **Each ticket** shows its Jira status as a chip (outline for to do, light
+  fill in progress, darker fill when done) and its assignee. A ticket that is
+  done in Jira but still has something to fix says so in red, e.g. "Done · 1
+  problem".
+- **Filters** sit above the table:
+  - The counts under the title filter by problem, grouped into things to fix
+    and things to wait for.
   - **Any branch** narrows the list to one branch, e.g. "Missing on
     stable-8.0".
-  - Search finds tickets by key or summary.
+  - Search finds tickets by key or summary; press `/` to jump to it.
   - The assignee filter has "Assigned to me", which uses your Atlassian
     account.
+  - A filter that hides tickets is tinted, and the headline says what it
+    keeps ("Showing 20 of 77 tickets: assigned to you"), with **Clear
+    filters**.
+- **Links:** the address bar holds the sprint (or dates) and the filters, so a
+  link or bookmark opens the same view.
 - **Sort:** newest first by one date; with a date sort on, each row shows it.
   The choice is saved in your browser.
   - **Jira order** (default): the board's order, or most recently updated
@@ -199,10 +209,14 @@ OAuth callback URLs work for both.
   saved in your browser only.
 - **Other repositories:** when Jira links a ticket to PRs in a repository you
   haven't selected, the row says so. Click the repo name to add it.
-- **Details** on a row explains what to fix, why each PR was matched, and
-  which PRs only mention the key.
+- **Details** on a row explains what to fix, with links to act on it (**Open
+  PR**, **Open in Jira**, **Copy PR link** to paste into the ticket's links),
+  why each PR was matched, and which PRs only mention the key. `Esc` closes
+  open details. Hovering a branch state explains it; hovering a PR number
+  shows why it counts for the ticket.
 - **Progress:** while loading, the status line shows the current step (Jira
-  tickets, Jira links, GitHub search, backports) with a count. Results are
+  tickets, Jira links, GitHub search, backports) with a count, and the Jira
+  tickets are listed as soon as they arrive, before GitHub is checked. Results are
   cached for 5 minutes; **Refresh** fetches fresh data.
 - **Theme:** the menu in the top bar switches between **System theme**
   (follows your OS), **Light** and **Dark**. The choice is saved in your
@@ -248,7 +262,8 @@ packages/
            (routes, the NDJSON progress stream, input parsing, error mapping).
   web/     Vite + Vue 3 (<script setup>, TypeScript). components/ (SFCs),
            composables/ (useReport streams progress, useTheme), lib/ (pure
-           functions: filters, branch list, progress text, fixed marks).
+           functions: filters, sorting, branch list, progress text, fixed marks,
+           URL state).
 ```
 
 The UI uses one typeface, Recursive (bundled, no external requests). Its mono

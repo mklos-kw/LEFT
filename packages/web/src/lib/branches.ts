@@ -131,3 +131,24 @@ export function visiblePrs(prs: LinkedPr[], limit = 2): { shown: LinkedPr[]; hid
   const sorted = [...prs].sort((a, b) => rank[a.pr.state] - rank[b.pr.state]);
   return { shown: sorted.slice(0, limit), hidden: Math.max(0, sorted.length - limit) };
 }
+
+/** What each branch state means, for the tooltip on it. */
+export function statusHelp(row: BranchRow): string {
+  if (row.isFeature) {
+    return `A feature branch: the fix is not in ${row.defaultBranch} until it is merged there.`;
+  }
+  switch (row.status) {
+    case 'merged':
+      return `A PR of this ticket into ${row.branch} is merged.`;
+    case 'included':
+      return `Already on ${row.branch}: the fix was merged to ${row.defaultBranch} before ${row.branch} was cut, so no backport is needed.`;
+    case 'open':
+      return `A PR of this ticket into ${row.branch} is open, not merged yet.`;
+    case 'closed':
+      return `The only PRs into ${row.branch} were closed without merging.`;
+    case 'missing':
+      return row.isDefault
+        ? `No PR of this ticket targets ${row.branch}.`
+        : `No PR of this ticket targets ${row.branch}, and the fix came after ${row.branch} was cut.`;
+  }
+}

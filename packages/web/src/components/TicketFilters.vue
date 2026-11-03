@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { SORT_LABELS, type AssigneeFilter, type BranchOption, type SortKey } from '../lib/view';
 
 defineProps<{
@@ -12,17 +13,33 @@ const assignee = defineModel<AssigneeFilter>('assignee', { required: true });
 /** Encoded `BranchFilter`; empty for any branch. */
 const branch = defineModel<string>('branch', { required: true });
 const sort = defineModel<SortKey>('sort', { required: true });
+
+// "/" jumps to the search field, unless you're already typing somewhere.
+const searchInput = ref<HTMLInputElement>();
+function onKey(event: KeyboardEvent) {
+  const typing = (event.target as HTMLElement | null)?.closest('input, select, textarea');
+  if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey) {
+    event.preventDefault();
+    searchInput.value?.focus();
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKey));
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 </script>
 
 <template>
+  <!-- data-active marks a filter that hides tickets, so it can't go unnoticed. -->
   <div class="control-group filters">
     <input
+      ref="searchInput"
       v-model="search"
       type="search"
       aria-label="Find a ticket"
-      placeholder="Find by key or summary"
+      aria-keyshortcuts="/"
+      placeholder="Find by key or summary  /"
+      :data-active="search.trim() !== ''"
     />
-    <select v-model="assignee" aria-label="Assignee">
+    <select v-model="assignee" aria-label="Assignee" :data-active="assignee !== 'all'">
       <option value="all">Anyone</option>
       <option value="me">Assigned to me</option>
       <option value="unassigned">Unassigned</option>
@@ -32,7 +49,12 @@ const sort = defineModel<SortKey>('sort', { required: true });
         </option>
       </optgroup>
     </select>
-    <select v-model="branch" aria-label="Branch" :disabled="branches.length === 0">
+    <select
+      v-model="branch"
+      aria-label="Branch"
+      :disabled="branches.length === 0"
+      :data-active="branch !== ''"
+    >
       <option value="">Any branch</option>
       <optgroup
         v-for="option in branches"

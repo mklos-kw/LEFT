@@ -1,11 +1,11 @@
-import type { Sprint, SprintState, Ticket } from '@ocis-dashboard/core';
+import type { Sprint, SprintState, StatusCategory, Ticket } from '@ocis-dashboard/core';
 
 /** The subset of Jira's issue JSON we request. */
 export interface JiraIssue {
   key: string;
   fields: {
     summary?: string;
-    status?: { name: string };
+    status?: { name: string; statusCategory?: { key: string } };
     issuetype?: { name: string };
     assignee?: { accountId: string; displayName: string } | null;
     fixVersions?: { name: string }[];
@@ -22,6 +22,13 @@ export interface JiraSprint {
   endDate?: string;
 }
 
+/** Jira's fixed status category keys; every workflow status belongs to one. */
+const CATEGORIES: Record<string, StatusCategory> = {
+  new: 'todo',
+  indeterminate: 'progress',
+  done: 'done',
+};
+
 /** Remote links come from a separate request; the report service fills them in. */
 export function toTicket(issue: JiraIssue, siteUrl: string): Ticket {
   const { fields } = issue;
@@ -29,6 +36,7 @@ export function toTicket(issue: JiraIssue, siteUrl: string): Ticket {
     key: issue.key,
     summary: fields.summary ?? '',
     status: fields.status?.name ?? '',
+    statusCategory: CATEGORIES[fields.status?.statusCategory?.key ?? ''] ?? 'todo',
     issueType: fields.issuetype?.name ?? '',
     url: `${siteUrl}/browse/${issue.key}`,
     assignee: fields.assignee

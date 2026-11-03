@@ -7,6 +7,7 @@ import type {
   ReportResponse,
   ReportSelection,
   ReportStreamEvent,
+  Ticket,
   SprintsResponse,
 } from '@ocis-dashboard/core';
 
@@ -50,6 +51,8 @@ export interface ReportOptions {
   refresh?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: ReportProgress) => void;
+  /** The Jira tickets, before the report is ready. */
+  onTickets?: (tickets: Ticket[]) => void;
 }
 
 export const api = {
@@ -64,7 +67,7 @@ export const api = {
   async report(
     selection: ReportSelection,
     repos: RepoName[],
-    { refresh = false, signal, onProgress }: ReportOptions = {},
+    { refresh = false, signal, onProgress, onTickets }: ReportOptions = {},
   ): Promise<ReportResponse> {
     const params = reportParams(selection, repos, refresh);
     const response = await fetch(`/api/report/stream?${params}`, {
@@ -86,6 +89,7 @@ export const api = {
         if (!line) continue;
         const event = JSON.parse(line) as ReportStreamEvent;
         if (event.type === 'progress') onProgress?.(event.progress);
+        else if (event.type === 'tickets') onTickets?.(event.tickets);
         else if (event.type === 'result') return event.report;
         else throw new ApiRequestError(event.error);
       }

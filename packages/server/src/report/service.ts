@@ -27,6 +27,8 @@ export type ProgressListener = (progress: ReportProgress) => void;
 
 export interface BuildOptions {
   onProgress?: ProgressListener;
+  /** Called once with the Jira tickets, before GitHub is searched. */
+  onTickets?: (tickets: Ticket[]) => void;
   /** Stops issuing new Jira/GitHub calls once aborted (e.g. the browser went away). */
   signal?: AbortSignal;
 }
@@ -60,13 +62,14 @@ export class ReportService {
   async build(
     selection: ReportSelection,
     repos: RepoName[],
-    { onProgress = () => {}, signal }: BuildOptions = {},
+    { onProgress = () => {}, onTickets = () => {}, signal }: BuildOptions = {},
   ): Promise<ReportResponse> {
     const check = () => signal?.throwIfAborted();
 
     onProgress({ step: 'tickets', done: 0, total: 0 });
     const loaded = await this.loadTickets(selection);
     onProgress({ step: 'tickets', done: loaded.length, total: loaded.length });
+    onTickets(loaded);
 
     const links = tracker('links', loaded.length, onProgress);
     const tickets = await this.withRemoteLinks(loaded, links.advance, check);

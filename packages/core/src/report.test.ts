@@ -28,6 +28,7 @@ function ticket(overrides: Partial<Ticket> & Pick<Ticket, 'key'>): Ticket {
   return {
     summary: '',
     status: 'Done',
+    statusCategory: 'done',
     issueType: 'Bug',
     url: `https://example.atlassian.net/browse/${overrides.key}`,
     assignee: null,
@@ -89,6 +90,11 @@ describe('buildReports', () => {
         code: 'NOT_LINKED_IN_JIRA',
         severity: 'error',
         message: 'owncloud/ocis#13255 not linked in Jira',
+        // Copy the PR link, then paste it into the ticket's links.
+        actions: [
+          { label: 'Copy PR link', url: `https://github.com/${OCIS}/pull/13255`, copy: true },
+          { label: 'Open in Jira', url: 'https://example.atlassian.net/browse/OCISDEV-1464' },
+        ],
       },
     ]);
   });
@@ -331,6 +337,7 @@ describe('GitHub issues that mention the ticket', () => {
       code: 'ISSUE_NOT_LINKED',
       severity: 'error',
       message: 'owncloud/ocis#13266 is not linked to any PR',
+      actions: [{ label: 'Open issue', url: `https://github.com/${OCIS}/issues/13266` }],
     });
   });
 
@@ -363,5 +370,20 @@ describe('GitHub issues that mention the ticket', () => {
     const report = build([], [issue()]);
     expect(report.unlinkedIssues.map((i) => i.number)).toEqual([13266]);
     expect(report.flags.map((f) => f.code)).toEqual(['NO_PR']);
+  });
+});
+
+describe('flag links', () => {
+  it('links a missing backport to the merged master PR to backport from', () => {
+    const [report] = buildReports({
+      projectKey: 'OCISDEV',
+      tickets: [ticket({ key: 'OCISDEV-9', fixVersions: ['Frances - 9.0.0'] })],
+      pullRequests: [pr({ number: 7, title: '[OCISDEV-9] fix' })],
+      repos: [{ name: OCIS, defaultBranch: 'master', branches: ['stable-9.0'] }],
+    });
+    const missing = report!.flags.find((f) => f.code === 'MISSING_BACKPORT');
+    expect(missing?.actions).toEqual([
+      { label: 'Open master PR', url: `https://github.com/${OCIS}/pull/7` },
+    ]);
   });
 });

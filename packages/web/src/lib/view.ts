@@ -1,4 +1,4 @@
-import type { FlagCode, RepoName, TicketReport } from '@ocis-dashboard/core';
+import type { FlagCode, MatchSource, RepoName, TicketReport } from '@ocis-dashboard/core';
 
 export interface FlagMeta {
   /** Short name for chips and filters. */
@@ -219,4 +219,22 @@ function newest(dates: (string | null)[]): string | undefined {
 /** Jira writes offsets as `+0200`; add the colon so every engine parses it. */
 function toTime(iso: string): number {
   return Date.parse(iso.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+}
+
+/** Why a PR belongs to a ticket, in words. */
+export const SOURCE_TEXT: Record<MatchSource, string> = {
+  title: 'key in the title',
+  branch: 'key in the branch name',
+  'jira-link': 'linked from Jira',
+  'backport-of': 'says it backports a PR of this ticket',
+};
+
+/**
+ * "1 problem" for a ticket Jira calls done but that still has something to fix;
+ * undefined otherwise. Waiting problems (an open PR) don't count: done means merged.
+ */
+export function doneButUnfinished(report: TicketReport): string | undefined {
+  if (report.ticket.statusCategory !== 'done') return undefined;
+  const open = report.flags.filter((flag) => flag.severity === 'error').length;
+  return open > 0 ? (open === 1 ? '1 problem' : `${open} problems`) : undefined;
 }

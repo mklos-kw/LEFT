@@ -9,7 +9,7 @@
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
     "@fastify/static": "^10.1.8",
-    "@ocis-dashboard/core": "*",
+    "@ocis-dashboard/core": "workspace:*",
     "fastify": "^5.12.7",
     "tsx": "^4.23.15"
   }

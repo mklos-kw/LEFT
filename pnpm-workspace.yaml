@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+
+# Install scripts are off by default in pnpm 10; esbuild (used by tsx and Vite) needs its own.
+onlyBuiltDependencies:
+  - esbuild

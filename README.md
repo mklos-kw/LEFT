@@ -85,8 +85,8 @@ not checked for Jira links or keys.
 ## Try it without any setup
 
 ```bash
-npm install
-npm run demo        # or: DEMO_MODE=true docker compose up --build
+pnpm install
+pnpm demo           # or: DEMO_MODE=true docker compose up --build
 ```
 
 Open <http://localhost:5173>. Demo mode serves sample tickets and PRs, so you
@@ -95,7 +95,9 @@ loading progress is visible.
 
 ## Setup
 
-You need Node 22+ (or Docker), plus two OAuth apps. Registering them doesn't
+You need Node 22+ and pnpm (or Docker), plus two OAuth apps. The pnpm version
+is pinned in `package.json`; `corepack enable` (bundled with Node) or any
+recent pnpm picks it up. Registering them doesn't
 need admin rights.
 
 ### 1. Atlassian OAuth 2.0 (3LO) app
@@ -129,8 +131,8 @@ cp .env.example .env   # fill in both apps and SESSION_SECRET (openssl rand -hex
 **Development** (hot reload; Vite on :5173 proxies `/api` and `/auth` to the server on :3000):
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 **Docker** (one container serves the web app and the API):
@@ -203,9 +205,9 @@ Set `BRANCH_TEMPLATES` in `.env`, for example
 ## Development
 
 ```bash
-npm test           # unit tests (vitest)
-npm run check      # typecheck + lint + format check + tests
-npm run format     # prettier --write
+pnpm test          # unit tests (vitest)
+pnpm check         # typecheck + lint + format check + tests
+pnpm format        # prettier --write
 ```
 
 ### Requests per report

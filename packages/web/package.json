@@ -9,12 +9,11 @@
   },
   "dependencies": {
     "@fontsource-variable/recursive": "^5.3.0",
-    "@ocis-dashboard/core": "*",
+    "@ocis-dashboard/core": "workspace:*",
     "vue": "^3.5.44"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.10",
-    "vite": "^8.3.5",
-    "vue-tsc": "^3.3.14"
+    "vite": "^8.3.5"
   }
 }

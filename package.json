@@ -2,19 +2,16 @@
   "name": "ocis-dashboard",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
-    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w @ocis-dashboard/server\" \"npm run dev -w @ocis-dashboard/web\"",
-    "demo": "DEMO_MODE=true npm run dev",
+    "dev": "concurrently -n server,web -c blue,green \"pnpm --filter @ocis-dashboard/server dev\" \"pnpm --filter @ocis-dashboard/web dev\"",
+    "demo": "DEMO_MODE=true pnpm dev",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p packages/core && tsc -p packages/server && vue-tsc -p packages/web",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
   },
   "engines": {
     "node": ">=22"
@@ -29,6 +26,8 @@
     "prettier": "^3.9.10",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
-    "vitest": "^5.0.5"
-  }
+    "vitest": "^5.0.5",
+    "vue-tsc": "^3.3.14"
+  },
+  "packageManager": "pnpm@10.34.9+sha512.f49b5a8ea0fdedb44bb3c0c1d6575092a53c2950d95b7ad15df11f17974877a2de3a01c07e934e9b28ce716e51c09a94962c7306d09be2e1e4b18a8c8762fd32"
 }

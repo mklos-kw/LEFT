@@ -60,7 +60,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       clientId: required('ATLASSIAN_CLIENT_ID'),
       clientSecret: required('ATLASSIAN_CLIENT_SECRET'),
       scopes: optional('ATLASSIAN_SCOPES', DEFAULT_ATLASSIAN_SCOPES),
-      siteUrl: trimSlash(optional('ATLASSIAN_SITE_URL', 'https://example.atlassian.net')),
+      // No default: the site is yours. Demo mode only builds links, so a placeholder will do.
+      siteUrl: trimSlash(required('ATLASSIAN_SITE_URL', 'https://example.atlassian.net')),
     },
     github: {
       clientId: required('GITHUB_CLIENT_ID'),

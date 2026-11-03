@@ -123,7 +123,7 @@ need admin rights.
 ### 3. Configure
 
 ```bash
-cp .env.example .env   # fill in both apps and SESSION_SECRET (openssl rand -hex 32)
+cp .env.example .env   # fill in both apps, ATLASSIAN_SITE_URL and SESSION_SECRET (openssl rand -hex 32)
 ```
 
 ## Run

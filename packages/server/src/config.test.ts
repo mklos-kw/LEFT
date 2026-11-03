@@ -19,7 +19,7 @@ describe('parseBranchTemplates', () => {
 describe('loadConfig', () => {
   it('lists every missing credential', () => {
     expect(() => loadConfig({})).toThrow(
-      /SESSION_SECRET, ATLASSIAN_CLIENT_ID, ATLASSIAN_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET/,
+      /SESSION_SECRET, ATLASSIAN_CLIENT_ID, ATLASSIAN_CLIENT_SECRET, ATLASSIAN_SITE_URL, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET/,
     );
   });
 

@@ -16,6 +16,9 @@ export interface Ticket {
   fixVersions: string[];
   /** URLs from the ticket's Jira remote links (GitHub and others). */
   remoteLinkUrls: string[];
+  /** ISO timestamps from Jira. */
+  created: string;
+  updated: string;
 }
 
 export type PrState = 'open' | 'closed' | 'merged';
@@ -43,6 +46,8 @@ export interface PullRequest {
   state: PrState;
   /** ISO timestamp; null unless merged. */
   mergedAt: string | null;
+  /** ISO timestamp of the last activity: pushes, reviews, comments, edits, merge. */
+  updatedAt: string;
   url: string;
   author: string | null;
   closingIssues: GitHubIssueRef[];

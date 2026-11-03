@@ -82,6 +82,7 @@ describe('GitHubClient.search results', () => {
                   url: 'https://github.com/owncloud/ocis/pull/13300',
                   state: 'OPEN',
                   mergedAt: null,
+                  updatedAt: '2026-10-30T10:00:00Z',
                   headRefName: 'fix',
                   baseRefName: 'master',
                   author: null,

@@ -48,9 +48,11 @@ const GHEZ = 'Ghez';
 
 export interface DemoTicket extends Ticket {
   sprintId: number;
-  /** `YYYY-MM-DD`, for the date-range selection. */
-  updated: string;
 }
+
+/** A created date that differs per ticket, so sorting by it shows something in the demo. */
+const createdFor = (key: string) =>
+  `2026-10-${String((Number(key.split('-')[1]) % 20) + 1).padStart(2, '0')}`;
 
 function ticket(
   key: string,
@@ -67,6 +69,8 @@ function ticket(
     fixVersions: [],
     remoteLinkUrls: [],
     sprintId: 27,
+    created: createdFor(key),
+    // `YYYY-MM-DD` is enough here; the date-range selection compares these.
     updated: '2026-10-28',
     ...details,
   };
@@ -242,6 +246,11 @@ function pr(
     baseRef: details.base ?? (repo === 'owncloud/reva' ? 'main' : 'master'),
     state,
     mergedAt: state === 'merged' ? `${details.merged ?? '2026-10-22'}T10:00:00Z` : null,
+    // Open PRs keep getting pushes and reviews; merged ones last changed when merged.
+    updatedAt:
+      state === 'open'
+        ? `2026-10-${String((number % 9) + 22).padStart(2, '0')}T15:00:00Z`
+        : `${details.merged ?? '2026-10-22'}T10:00:00Z`,
     url: `https://github.com/${repo}/pull/${number}`,
     author: details.author ?? 'dev',
     closingIssues: [],

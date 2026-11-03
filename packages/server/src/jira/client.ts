@@ -4,7 +4,15 @@ import { requestJson, type RequestOptions } from '../http';
 import type { SprintSource, TicketSource } from '../report/ports';
 import { sortSprints, toSprint, toTicket, type JiraIssue, type JiraSprint } from './mapper';
 
-const ISSUE_FIELDS = ['summary', 'status', 'issuetype', 'assignee', 'fixVersions'];
+const ISSUE_FIELDS = [
+  'summary',
+  'status',
+  'issuetype',
+  'assignee',
+  'fixVersions',
+  'created',
+  'updated',
+];
 const PAGE_SIZE = 100;
 
 interface AgilePage<T> {

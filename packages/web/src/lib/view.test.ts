@@ -1,6 +1,6 @@
 import type { BranchCoverage, TicketReport } from '@ocis-dashboard/core';
 import { describe, expect, it } from 'vitest';
-import { branchOptions, filterReports } from './view';
+import { branchOptions, filterReports, sortDate, sortReports } from './view';
 
 const OCIS = 'owncloud/ocis';
 
@@ -15,6 +15,8 @@ function report(key: string, coverage: Partial<BranchCoverage>[]): TicketReport 
       assignee: null,
       fixVersions: [],
       remoteLinkUrls: [],
+      created: '2026-10-01T09:00:00.000+0200',
+      updated: '2026-10-20T09:00:00.000+0200',
     },
     prs: [],
     mentions: [],
@@ -52,5 +54,71 @@ describe('branch filter', () => {
       branch: { repo: OCIS, branch: 'stable-7.0', which: 'missing' },
     });
     expect(shown.map((r) => r.ticket.key)).toEqual(['OCISDEV-1']);
+  });
+});
+
+describe('sortReports', () => {
+  /** A PR merged at `merged` (or still open), last touched at `activity`. */
+  type Pr = { merged: string | null; activity: string };
+  const at = (key: string, created: string, updated: string, prs: Pr[]) => {
+    const base = report(key, []);
+    return {
+      ...base,
+      ticket: { ...base.ticket, created, updated },
+      prs: prs.map(({ merged, activity }, i) => ({
+        pr: {
+          repo: OCIS,
+          number: i + 1,
+          title: '',
+          body: '',
+          headRef: '',
+          baseRef: 'master',
+          state: merged ? ('merged' as const) : ('open' as const),
+          mergedAt: merged,
+          updatedAt: activity,
+          url: `https://github.com/${OCIS}/pull/${key}-${i}`,
+          author: null,
+          closingIssues: [],
+        },
+        sources: ['title' as const],
+        isBackport: false,
+        intoDefault: true,
+        backportOf: [],
+        linkedInJira: true,
+        keyInPr: true,
+      })),
+    };
+  };
+  const a = at('OCISDEV-1', '2026-10-01T09:00:00.000+0200', '2026-10-30T09:00:00.000+0200', [
+    { merged: '2026-10-05T10:00:00Z', activity: '2026-10-05T10:00:00Z' },
+  ]);
+  const b = at('OCISDEV-2', '2026-10-10T09:00:00.000+0200', '2026-10-12T09:00:00.000+0200', [
+    { merged: '2026-10-20T10:00:00Z', activity: '2026-10-20T10:00:00Z' },
+    { merged: '2026-10-02T10:00:00Z', activity: '2026-10-02T10:00:00Z' },
+  ]);
+  // Nothing merged yet, but someone pushed to the open PR last.
+  const c = at('OCISDEV-3', '2026-10-05T09:00:00.000+0200', '2026-10-20T09:00:00.000-0800', [
+    { merged: null, activity: '2026-11-01T08:00:00Z' },
+  ]);
+  const keys = (sort: Parameters<typeof sortReports>[1]) =>
+    sortReports([a, b, c], sort).map((r) => r.ticket.key);
+
+  it('keeps Jira’s order by default', () => {
+    expect(keys('jira')).toEqual(['OCISDEV-1', 'OCISDEV-2', 'OCISDEV-3']);
+  });
+
+  it('sorts by Jira dates, newest first, reading Jira’s +HHMM offsets', () => {
+    expect(keys('updated')).toEqual(['OCISDEV-1', 'OCISDEV-3', 'OCISDEV-2']);
+    expect(keys('created')).toEqual(['OCISDEV-2', 'OCISDEV-3', 'OCISDEV-1']);
+  });
+
+  it('sorts by the latest PR merge, tickets with nothing merged last', () => {
+    expect(keys('merged')).toEqual(['OCISDEV-2', 'OCISDEV-1', 'OCISDEV-3']);
+    expect(sortDate(b, 'merged')).toBe('2026-10-20T10:00:00Z');
+    expect(sortDate(c, 'merged')).toBeUndefined();
+  });
+
+  it('sorts by the latest PR activity, open PRs included', () => {
+    expect(keys('activity')).toEqual(['OCISDEV-3', 'OCISDEV-2', 'OCISDEV-1']);
   });
 });

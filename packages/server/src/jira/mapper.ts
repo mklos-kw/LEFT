@@ -9,6 +9,8 @@ export interface JiraIssue {
     issuetype?: { name: string };
     assignee?: { accountId: string; displayName: string } | null;
     fixVersions?: { name: string }[];
+    created?: string;
+    updated?: string;
   };
 }
 
@@ -34,6 +36,8 @@ export function toTicket(issue: JiraIssue, siteUrl: string): Ticket {
       : null,
     fixVersions: (fields.fixVersions ?? []).map((version) => version.name),
     remoteLinkUrls: [],
+    created: fields.created ?? '',
+    updated: fields.updated ?? '',
   };
 }
 

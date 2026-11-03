@@ -13,7 +13,7 @@ const BATCH_SIZE = 10;
 
 const PR_FIELDS = `
   fragment PrFields on PullRequest {
-    number title body url state mergedAt headRefName baseRefName
+    number title body url state mergedAt updatedAt headRefName baseRefName
     author { login }
     repository { nameWithOwner }
     closingIssuesReferences(first: 10) {

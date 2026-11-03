@@ -14,7 +14,7 @@ import {
 /** Simulated network latency, so loading states can be seen and tested. */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function asTicket({ sprintId: _sprintId, updated: _updated, ...ticket }: DemoTicket): Ticket {
+function asTicket({ sprintId: _sprintId, ...ticket }: DemoTicket): Ticket {
   return { ...ticket, remoteLinkUrls: [] };
 }
 

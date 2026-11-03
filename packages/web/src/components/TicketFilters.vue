@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AssigneeFilter, BranchOption } from '../lib/view';
+import { SORT_LABELS, type AssigneeFilter, type BranchOption, type SortKey } from '../lib/view';
 
 defineProps<{
   people: { id: string; name: string }[];
@@ -11,6 +11,7 @@ const search = defineModel<string>('search', { required: true });
 const assignee = defineModel<AssigneeFilter>('assignee', { required: true });
 /** Encoded `BranchFilter`; empty for any branch. */
 const branch = defineModel<string>('branch', { required: true });
+const sort = defineModel<SortKey>('sort', { required: true });
 </script>
 
 <template>
@@ -48,6 +49,9 @@ const branch = defineModel<string>('branch', { required: true });
           Open on {{ option.branch }} ({{ option.open }})
         </option>
       </optgroup>
+    </select>
+    <select v-model="sort" aria-label="Sort by" title="Dates sort newest first">
+      <option v-for="(label, key) in SORT_LABELS" :key="key" :value="key">Sort: {{ label }}</option>
     </select>
   </div>
 </template>

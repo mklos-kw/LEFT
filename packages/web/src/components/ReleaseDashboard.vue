@@ -18,8 +18,10 @@ import {
   branchOptions,
   decodeBranchFilter,
   filterReports,
+  sortReports,
   type AssigneeFilter,
   type ProblemFilter,
+  type SortKey,
 } from '../lib/view';
 import ErrorBanner from './ErrorBanner.vue';
 import TicketFilters from './TicketFilters.vue';
@@ -51,6 +53,8 @@ const dates = ref({ from: daysAgo(13), to: daysAgo(0) });
 const problem = ref<ProblemFilter>('all');
 const assignee = ref<AssigneeFilter>('all');
 const search = ref('');
+/** A preference, so it survives reloads and sprint changes. */
+const sort = useLocalStorage<SortKey>('sort', 'jira');
 const branch = ref('');
 
 // Boards and sprints.
@@ -111,7 +115,10 @@ watch(
 );
 
 const data = computed(() => report.value.data);
-const allReports = computed(() => applyMarks(data.value?.reports ?? [], fixedMarks.value));
+// Sorted first: marking keeps that order and only moves marked tickets to the end.
+const allReports = computed(() =>
+  applyMarks(sortReports(data.value?.reports ?? [], sort.value), fixedMarks.value),
+);
 
 function markFixed(key: string) {
   const report = data.value?.reports.find((r) => r.ticket.key === key);
@@ -186,6 +193,7 @@ function addRepo(name: string) {
         v-model:search="search"
         v-model:assignee="assignee"
         v-model:branch="branch"
+        v-model:sort="sort"
         :people="assignees(allReports)"
         :branches="branchOptions(allReports)"
         :multi-repo="enabledRepos.length > 1"
@@ -227,6 +235,7 @@ function addRepo(name: string) {
           v-if="shown.length > 0"
           :reports="shown"
           :repos="data.repos"
+          :sort="sort"
           :stale="report.status === 'loading'"
           @add-repo="addRepo"
           @mark-fixed="markFixed"

@@ -15,6 +15,8 @@ const ticket: Ticket = {
   assignee: null,
   fixVersions: ['Frances - 9.0.0'],
   remoteLinkUrls: [],
+  created: '2026-10-01T09:00:00.000+0200',
+  updated: '2026-10-20T09:00:00.000+0200',
 };
 
 const hits = (pullRequests: PullRequest[]): SearchHits => ({ pullRequests, issues: [] });
@@ -40,6 +42,7 @@ function pr(number: number, overrides: Partial<PullRequest> = {}): PullRequest {
     baseRef: 'master',
     state: 'merged',
     mergedAt: '2026-10-20T10:00:00Z',
+    updatedAt: '2026-10-30T10:00:00Z',
     url: `https://github.com/${OCIS}/pull/${number}`,
     author: 'dev',
     closingIssues: [],

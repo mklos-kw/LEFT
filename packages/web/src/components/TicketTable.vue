@@ -4,13 +4,15 @@ import { ref } from 'vue';
 import { branchRows } from '../lib/branches';
 import { formatRange } from '../lib/format';
 import type { MarkedReport } from '../lib/marks';
-import { FLAGS, isWait, uniqueFlagCodes } from '../lib/view';
+import { FLAGS, isWait, SORT_LABELS, sortDate, uniqueFlagCodes, type SortKey } from '../lib/view';
 import BranchList from './BranchList.vue';
 import TicketDetails from './TicketDetails.vue';
 
 defineProps<{
   reports: MarkedReport[];
   repos: RepoInfo[];
+  /** The active sort; for a date sort, each row shows that date. */
+  sort: SortKey;
   /** Data is being refreshed; dim it. */
   stale: boolean;
 }>();
@@ -71,6 +73,10 @@ function severity(report: MarkedReport): 'fix' | 'wait' | 'ok' {
                 <span>{{ report.ticket.assignee?.name ?? 'Unassigned' }}</span>
                 <span v-if="report.ticket.fixVersions.length > 0">
                   {{ report.ticket.fixVersions.join(', ') }}
+                </span>
+                <span v-if="sort !== 'jira'" class="sort-date">
+                  {{ SORT_LABELS[sort] }}
+                  {{ sortDate(report, sort) ? formatRange(sortDate(report, sort)) : '—' }}
                 </span>
               </span>
             </td>

@@ -16,6 +16,7 @@ function pr(overrides: Partial<PullRequest> & Pick<PullRequest, 'number'>): Pull
     baseRef: 'master',
     state: 'merged',
     mergedAt: '2026-10-20T10:00:00Z',
+    updatedAt: '2026-10-30T10:00:00Z',
     url: `https://github.com/${OCIS}/pull/${overrides.number}`,
     author: 'dev',
     closingIssues: [],
@@ -32,6 +33,8 @@ function ticket(overrides: Partial<Ticket> & Pick<Ticket, 'key'>): Ticket {
     assignee: null,
     fixVersions: [],
     remoteLinkUrls: [],
+    created: '2026-10-01T09:00:00.000+0200',
+    updated: '2026-10-20T09:00:00.000+0200',
     ...overrides,
   };
 }

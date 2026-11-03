@@ -13,6 +13,7 @@ export interface GraphQLPullRequest {
   url: string;
   state: 'OPEN' | 'CLOSED' | 'MERGED';
   mergedAt: string | null;
+  updatedAt: string;
   headRefName: string;
   baseRefName: string;
   author: { login: string } | null;
@@ -38,6 +39,7 @@ export function toPullRequest(node: GraphQLPullRequest): PullRequest {
     baseRef: node.baseRefName,
     state: STATES[node.state],
     mergedAt: node.mergedAt,
+    updatedAt: node.updatedAt,
     url: node.url,
     author: node.author?.login ?? null,
     closingIssues: node.closingIssuesReferences.nodes.map((issue) => ({

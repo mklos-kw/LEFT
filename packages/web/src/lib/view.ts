@@ -177,3 +177,46 @@ export function uniqueFlagCodes(report: Pick<TicketReport, 'flags'>): FlagCode[]
   const codes = new Set(report.flags.map((flag) => flag.code));
   return FLAG_ORDER.filter((code) => codes.has(code));
 }
+
+/** How to order the ticket list: Jira's own order, or a date from Jira or GitHub, newest first. */
+export type SortKey = 'jira' | 'updated' | 'created' | 'activity' | 'merged';
+
+export const SORT_LABELS: Record<SortKey, string> = {
+  jira: 'Jira order',
+  updated: 'Updated in Jira',
+  created: 'Created in Jira',
+  activity: 'Last PR activity',
+  merged: 'Last PR merged',
+};
+
+/** The date a report is sorted by; undefined for Jira order or when there is none (nothing merged). */
+export function sortDate(report: TicketReport, sort: SortKey): string | undefined {
+  if (sort === 'updated') return report.ticket.updated || undefined;
+  if (sort === 'created') return report.ticket.created || undefined;
+  // GitHub's "updated" time moves with pushes, reviews, comments, edits and the merge.
+  if (sort === 'activity') return newest(report.prs.map(({ pr }) => pr.updatedAt));
+  if (sort === 'merged') return newest(report.prs.map(({ pr }) => pr.mergedAt));
+  return undefined;
+}
+
+/** Newest first; reports without a date keep their order at the end. Jira order is left as is. */
+export function sortReports<T extends TicketReport>(reports: T[], sort: SortKey): T[] {
+  if (sort === 'jira') return reports;
+  const time = (report: T) => {
+    const date = sortDate(report, sort);
+    return date ? toTime(date) : -Infinity;
+  };
+  return reports
+    .map((report, index) => ({ report, index, time: time(report) }))
+    .sort((x, y) => y.time - x.time || x.index - y.index)
+    .map(({ report }) => report);
+}
+
+function newest(dates: (string | null)[]): string | undefined {
+  return dates.filter((at): at is string => at !== null).sort((x, y) => toTime(y) - toTime(x))[0];
+}
+
+/** Jira writes offsets as `+0200`; add the colon so every engine parses it. */
+function toTime(iso: string): number {
+  return Date.parse(iso.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+}

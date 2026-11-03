@@ -179,6 +179,17 @@ OAuth callback URLs work for both.
   - Search finds tickets by key or summary.
   - The assignee filter has "Assigned to me", which uses your Atlassian
     account.
+- **Sort:** newest first by one date; with a date sort on, each row shows it.
+  The choice is saved in your browser.
+  - **Jira order** (default): the board's order, or most recently updated
+    first in dates mode.
+  - **Updated in Jira:** changes with anything on the ticket (status, comment,
+    assignee, fields, links).
+  - **Created in Jira:** when the ticket was opened.
+  - **Last PR activity:** the newest GitHub "updated" time of the ticket's PRs,
+    which moves with pushes, reviews, comments, edits, merging and closing.
+  - **Last PR merged:** the newest merge date of the ticket's PRs; tickets with
+    nothing merged go last.
 - **Mark fixed:** when you've checked a ticket by hand (e.g. a PR was
   reverted and the real fix is elsewhere), click **Mark fixed**. The ticket
   stays in the list (moved below the ones that still need attention), shows

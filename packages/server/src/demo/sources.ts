@@ -7,8 +7,8 @@ import {
   DEMO_PULL_REQUESTS,
   DEMO_REPOS,
   DEMO_SPRINTS,
-  DEMO_VERSIONS,
   DEMO_TICKETS,
+  DEMO_VERSIONS,
   type DemoTicket,
 } from './fixtures';
 

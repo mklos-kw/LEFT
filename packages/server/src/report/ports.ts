@@ -5,8 +5,8 @@ import type {
   RepoInfo,
   RepoName,
   Sprint,
-  Version,
   Ticket,
+  Version,
 } from '@ocis-dashboard/core';
 
 /** What one GitHub search returns: PRs and, unless the query says `is:pr`, issues. */

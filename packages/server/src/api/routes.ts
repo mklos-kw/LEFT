@@ -47,6 +47,12 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
     return { boards };
   });
 
+  app.get('/api/versions', async (request): Promise<VersionsResponse> => {
+    const jira = await jiraFor(config, request.session);
+    const versions = await request.session.cache.getOrLoad('versions', () => jira.listVersions());
+    return { versions };
+  });
+
   app.get<{ Querystring: { boardId?: string } }>(
     '/api/sprints',
     async (request): Promise<SprintsResponse> => {
@@ -61,12 +67,6 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
       return { sprints };
     },
   );
-
-  app.get('/api/versions', async (request): Promise<VersionsResponse> => {
-    const jira = await jiraFor(config, request.session);
-    const versions = await request.session.cache.getOrLoad('versions', () => jira.listVersions());
-    return { versions };
-  });
 
   /** Plain JSON, handy for scripts. */
   app.get<{ Querystring: ReportQuery }>(

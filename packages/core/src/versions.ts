@@ -46,3 +46,22 @@ export function backportBranchesFor(fixVersions: string[], template?: string): s
     .filter((branch): branch is string => branch !== null);
   return [...new Set(branches)];
 }
+
+/**
+ * The `major.minor` family a Jira fixVersion belongs to, e.g.
+ * "Curie S9 - 8.0.10" -> "8.0". Versions without a number (e.g. "Ghez")
+ * belong to no family.
+ */
+export function versionFamily(fixVersion: string): string | null {
+  const number = versionNumber(fixVersion);
+  return number ? number.split('.', 2).join('.') : null;
+}
+
+/**
+ * The exact `major.minor[.patch]` number in a Jira fixVersion, e.g.
+ * "Curie S9 - 8.0.10" -> "8.0.10". Versions without a number map to null,
+ * same as `versionFamily`.
+ */
+export function versionNumber(fixVersion: string): string | null {
+  return VERSION.exec(fixVersion)?.[0] ?? null;
+}

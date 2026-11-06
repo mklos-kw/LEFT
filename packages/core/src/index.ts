@@ -8,6 +8,8 @@ export {
   backportBranchesFor,
   DEFAULT_BRANCH_TEMPLATE,
   isReleaseBranch,
+  versionFamily,
+  versionNumber,
 } from './versions';
 export {
   ageInDays,

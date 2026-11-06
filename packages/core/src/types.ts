@@ -67,6 +67,8 @@ export interface PullRequest {
   checks: ChecksState;
   review: ReviewState;
   closingIssues: GitHubIssueRef[];
+  /** The merge commit SHA; null unless merged. */
+  mergeCommitSha: string | null;
 }
 
 export interface RepoInfo {
@@ -116,6 +118,14 @@ export interface BranchCoverage {
   prNumbers: number[];
   /** When the branch split off the default branch, if known. */
   branchPoint?: string;
+  /**
+   * Set when `status` is `missing` but a dependency repo's fix on this same
+   * branch is already covered by this repo's pinned revision of it (e.g. a
+   * go.mod bump that happened to include the fix). Treat as covered.
+   */
+  pinnedVia?: { repo: RepoName; version: string };
+  /** Set when `status` is `missing` and this repo's dependency `repo` already has the fix here. */
+  crossRepoGap?: RepoName;
 }
 
 export type FlagCode =
@@ -126,7 +136,8 @@ export type FlagCode =
   | 'BACKPORT_OPEN'
   | 'NOT_LINKED_IN_JIRA'
   | 'KEY_MISSING_IN_PR'
-  | 'ISSUE_NOT_LINKED';
+  | 'ISSUE_NOT_LINKED'
+  | 'OLDER_BRANCH_FIXED';
 
 export type Severity = 'error' | 'warning';
 

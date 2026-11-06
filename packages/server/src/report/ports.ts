@@ -58,4 +58,10 @@ export interface CodeHost {
   /** Runs each search query; returns one result per query, in order. */
   search(queries: string[]): Promise<SearchHits[]>;
   pullRequests(repo: RepoName, numbers: number[]): Promise<PullRequest[]>;
+  /** The content of `path` at `ref`; null if it doesn't exist there. */
+  fileAtRef(repo: RepoName, ref: string, path: string): Promise<string | null>;
+  /** The commit SHA a tag or branch name points to; null if it doesn't exist. */
+  resolveRef(repo: RepoName, ref: string): Promise<string | null>;
+  /** Whether `ancestorSha` is reachable from `descendantSha`. */
+  commitIncludes(repo: RepoName, ancestorSha: string, descendantSha: string): Promise<boolean>;
 }

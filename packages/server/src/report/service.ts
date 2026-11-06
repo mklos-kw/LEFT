@@ -1,8 +1,11 @@
 import {
   backportBranchesFor,
   buildReports,
+  evaluateFlags,
   releaseTargets,
   parseGitHubUrl,
+  parseGoModPin,
+  type BranchCoverage,
   type PullRequest,
   type RepoInfo,
   type RepoName,
@@ -11,6 +14,7 @@ import {
   type ReportSelection,
   type ReportStep,
   type Ticket,
+  type TicketReport,
 } from '@ocis-dashboard/core';
 import { chunk, mapLimit } from '../util/map-limit';
 import type { TtlCache } from '../util/ttl-cache';
@@ -42,6 +46,8 @@ export interface ReportServiceDeps {
   branchTemplates: Record<RepoName, string>;
   /** Open backports older than this many days are stale; 0 turns the flag off. */
   staleBackportDays: number;
+  /** Repo -> the Go module it vendors, for the go.mod-pin cross-repo check. */
+  repoDependencies: Record<RepoName, { repo: RepoName; modulePath: string }>;
   /** Per-user cache; see Session.cache. */
   cache: TtlCache;
 }
@@ -105,22 +111,101 @@ export class ReportService {
       check,
     );
 
+    const reports = buildReports({
+      projectKey: this.deps.projectKey,
+      tickets,
+      pullRequests: [...byKey, ...fromLinks, ...backports],
+      issues,
+      repos: repoInfos,
+      branchTemplates: this.deps.branchTemplates,
+      flagOptions: { staleBackportDays: this.deps.staleBackportDays },
+    });
+
     return {
       generatedAt: new Date().toISOString(),
       repos: repoInfos,
-      reports: buildReports({
-        projectKey: this.deps.projectKey,
-        tickets,
-        pullRequests: [...byKey, ...fromLinks, ...backports],
-        issues,
-        repos: repoInfos,
-        branchTemplates: this.deps.branchTemplates,
-        flagOptions: { staleBackportDays: this.deps.staleBackportDays },
-      }),
+      reports: await this.withCrossRepoGaps(reports, repos),
       ...(selection.kind === 'version' && {
         releaseTargets: releaseTargets(selection.version, repoInfos, this.deps.branchTemplates),
       }),
     };
+  }
+
+  /**
+   * Where a repo's branch is missing a backport but its dependency already has
+   * the fix on the same branch: check whether the repo's go.mod pin of that
+   * dependency already includes the fix commit (no dedicated PR needed), or
+   * flag the gap. Only runs for dependency pairs where both repos were selected.
+   */
+  private async withCrossRepoGaps(
+    reports: TicketReport[],
+    repos: RepoName[],
+  ): Promise<TicketReport[]> {
+    const deps = Object.entries(this.deps.repoDependencies).filter(
+      ([consumer, dep]) => repos.includes(consumer) && repos.includes(dep.repo),
+    );
+    if (deps.length === 0) return reports;
+
+    return Promise.all(
+      reports.map(async (report) => {
+        const coverage = await Promise.all(
+          report.coverage.map((entry) => this.checkCrossRepoGap(entry, report, deps)),
+        );
+        // Flags were computed from the original coverage; a pinnedVia/crossRepoGap patch
+        // changes what missingBackport (and anything else keyed on coverage) should say.
+        const patched = { ...report, coverage };
+        const flags = evaluateFlags(patched, undefined, {
+          staleBackportDays: this.deps.staleBackportDays,
+        });
+        return { ...patched, flags };
+      }),
+    );
+  }
+
+  private async checkCrossRepoGap(
+    entry: BranchCoverage,
+    report: TicketReport,
+    deps: [RepoName, { repo: RepoName; modulePath: string }][],
+  ): Promise<BranchCoverage> {
+    if (!entry.required || entry.status !== 'missing') return entry;
+    const dep = deps.find(([consumer]) => consumer === entry.repo)?.[1];
+    if (!dep) return entry;
+
+    const depCoverage = report.coverage.find(
+      (c) =>
+        c.repo === dep.repo &&
+        c.branch === entry.branch &&
+        (c.status === 'merged' || c.status === 'included'),
+    );
+    const fixPr = depCoverage
+      ? report.prs.find(
+          (l) => l.pr.repo === dep.repo && depCoverage.prNumbers.includes(l.pr.number),
+        )
+      : undefined;
+    if (!fixPr?.pr.mergeCommitSha) {
+      return depCoverage ? { ...entry, crossRepoGap: dep.repo } : entry;
+    }
+
+    const goMod = await this.cached(`gomod:${entry.repo}:${entry.branch}`, () =>
+      this.deps.code.fileAtRef(entry.repo, entry.branch, 'go.mod'),
+    );
+    const pin = goMod ? parseGoModPin(goMod, dep.modulePath) : null;
+    if (!pin) return { ...entry, crossRepoGap: dep.repo };
+
+    const pinnedSha =
+      pin.commitSha ??
+      (await this.cached(`ref:${dep.repo}:${pin.version}`, () =>
+        this.deps.code.resolveRef(dep.repo, pin.version),
+      ));
+    if (!pinnedSha) return { ...entry, crossRepoGap: dep.repo };
+
+    const included = await this.cached(
+      `includes:${dep.repo}:${fixPr.pr.mergeCommitSha}:${pinnedSha}`,
+      () => this.deps.code.commitIncludes(dep.repo, fixPr.pr.mergeCommitSha!, pinnedSha),
+    );
+    return included
+      ? { ...entry, pinnedVia: { repo: dep.repo, version: pin.version } }
+      : { ...entry, crossRepoGap: dep.repo };
   }
 
   private loadTickets(selection: ReportSelection): Promise<Ticket[]> {

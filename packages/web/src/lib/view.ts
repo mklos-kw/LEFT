@@ -41,6 +41,10 @@ export const FLAGS: Record<FlagCode, FlagMeta> = {
     label: 'Backport open',
     hint: 'The backport is not merged yet.',
   },
+  OLDER_BRANCH_FIXED: {
+    label: 'Older branch fixed',
+    hint: 'An older required branch already has this fix, but a newer one still needs a backport.',
+  },
 };
 
 /** Problems that clear up by themselves once a PR is merged; shown in the waiting colour. */

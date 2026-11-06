@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig, parseBranchTemplates } from './config';
+import { loadConfig, parseBranchTemplates, parseRepoDependencies } from './config';
 
 describe('parseBranchTemplates', () => {
   it('parses repo=template pairs and normalizes repo names', () => {
@@ -39,6 +39,22 @@ describe('STALE_BACKPORT_DAYS', () => {
   });
 });
 
+describe('parseRepoDependencies', () => {
+  it('parses consumer=dependency:modulePath, normalizing repo names', () => {
+    expect(
+      parseRepoDependencies('Owncloud/Ocis=owncloud/reva:github.com/cs3org/reva/v2'),
+    ).toEqual({
+      'owncloud/ocis': { repo: 'owncloud/reva', modulePath: 'github.com/cs3org/reva/v2' },
+    });
+  });
+
+  it('defaults modulePath to github.com/{dependency} when omitted', () => {
+    expect(parseRepoDependencies('owncloud/ocis=owncloud/reva')).toEqual({
+      'owncloud/ocis': { repo: 'owncloud/reva', modulePath: 'github.com/owncloud/reva' },
+    });
+  });
+});
+
 describe('loadConfig', () => {
   it('lists every missing credential', () => {
     expect(() => loadConfig({})).toThrow(
@@ -48,5 +64,11 @@ describe('loadConfig', () => {
 
   it('needs no credentials in demo mode', () => {
     expect(loadConfig({ DEMO_MODE: 'true' }).demo).toBe(true);
+  });
+
+  it('gives demo mode a default repo dependency to showcase the cross-repo check', () => {
+    expect(loadConfig({ DEMO_MODE: 'true' }).repoDependencies).toEqual({
+      'owncloud/ocis': { repo: 'owncloud/reva', modulePath: 'github.com/owncloud/reva/v2' },
+    });
   });
 });

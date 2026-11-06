@@ -100,4 +100,24 @@ export const demoCodeHost: CodeHost = {
     await sleep(200);
     return DEMO_PULL_REQUESTS.filter((pr) => pr.repo === repo && numbers.includes(pr.number));
   },
+  async fileAtRef(repo, _ref, path) {
+    await sleep(100);
+    if (path !== 'go.mod' || !(repo in DEMO_REPOS)) return null;
+    // Always pins the same (old, fake) reva revision, regardless of branch: good enough to
+    // exercise the parser without a real go.mod per branch in sample data.
+    return (
+      'module github.com/owncloud/ocis/v2\n\ngo 1.26\n\n' +
+      'require github.com/owncloud/reva/v2 v2.0.1-0.20260101000000-000000000000\n'
+    );
+  },
+  async resolveRef() {
+    await sleep(100);
+    return null;
+  },
+  async commitIncludes() {
+    // No real git history in sample data: always "not pinned yet", so the demo deterministically
+    // shows the cross-repo gap rather than silently hiding it.
+    await sleep(100);
+    return false;
+  },
 };

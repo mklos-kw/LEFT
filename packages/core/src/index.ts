@@ -34,3 +34,4 @@ export {
   type TicketReadiness,
   type Verdict,
 } from './readiness';
+export { parseGoModPin, type GoModPin } from './gomod';

@@ -24,6 +24,7 @@ function pr(overrides: Partial<PullRequest> & Pick<PullRequest, 'number'>): Pull
     checks: 'none',
     review: 'none',
     closingIssues: [],
+    mergeCommitSha: null,
     ...overrides,
   };
 }

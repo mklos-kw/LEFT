@@ -15,6 +15,7 @@ import {
   type SortKey,
 } from '../lib/view';
 import BranchList from './BranchList.vue';
+import CopyJsonButton from './CopyJsonButton.vue';
 import TicketDetails from './TicketDetails.vue';
 
 const props = defineProps<{
@@ -222,6 +223,10 @@ function severity(report: MarkedReport): 'fix' | 'wait' | 'ok' {
                 >
                   Mark fixed
                 </button>
+                <CopyJsonButton
+                  :data="report"
+                  :label="`Copy ${report.ticket.key} as JSON`"
+                />
               </div>
             </td>
           </tr>

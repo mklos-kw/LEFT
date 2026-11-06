@@ -13,6 +13,8 @@ export interface Config {
   branchTemplates: Record<RepoName, string>;
   /** An open backport older than this many days gets "Backport stale"; 0 turns the flag off. */
   staleBackportDays: number;
+  /** Repo -> the Go module it vendors, for the go.mod-pin cross-repo check. */
+  repoDependencies: Record<RepoName, { repo: RepoName; modulePath: string }>;
   atlassian: {
     clientId: string;
     clientSecret: string;
@@ -69,6 +71,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       'STALE_BACKPORT_DAYS',
       optional('STALE_BACKPORT_DAYS', String(DEFAULT_STALE_BACKPORT_DAYS)),
     ),
+    // Demo mode gets a default pair so the cross-repo gap check has something to show.
+    repoDependencies: parseRepoDependencies(
+      optional('REPO_DEPENDENCIES', demo ? 'owncloud/ocis=owncloud/reva:github.com/owncloud/reva/v2' : ''),
+    ),
     atlassian: {
       clientId: required('ATLASSIAN_CLIENT_ID'),
       clientSecret: required('ATLASSIAN_CLIENT_SECRET'),
@@ -116,4 +122,20 @@ export function parseBranchTemplates(value: string): Record<RepoName, string> {
     templates[normalizeRepo(repo)] = template;
   }
   return templates;
+}
+
+/** Parses `consumer=dependency[:modulePath],...`; modulePath defaults to `github.com/{dependency}`. */
+export function parseRepoDependencies(
+  value: string,
+): Record<RepoName, { repo: RepoName; modulePath: string }> {
+  const dependencies: Record<RepoName, { repo: RepoName; modulePath: string }> = {};
+  for (const entry of value.split(',')) {
+    const [consumer, rest] = entry.split('=').map((part) => part.trim());
+    if (!consumer || !rest) continue;
+    const [dependency, modulePath] = rest.split(':').map((part) => part.trim());
+    if (!dependency) continue;
+    const repo = normalizeRepo(dependency);
+    dependencies[normalizeRepo(consumer)] = { repo, modulePath: modulePath || `github.com/${repo}` };
+  }
+  return dependencies;
 }

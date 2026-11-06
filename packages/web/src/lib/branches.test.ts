@@ -31,6 +31,7 @@ function linked(
       checks: 'none' as const,
       review: 'none' as const,
       closingIssues: [],
+      mergeCommitSha: state === 'merged' ? `sha-${number}` : null,
     },
     sources: ['title'],
     isBackport: baseRef.startsWith('stable-'),

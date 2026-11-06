@@ -154,6 +154,13 @@ export const DEMO_TICKETS: DemoTicket[] = [
     assignee: people.jordan,
     fixVersions: [GHEZ],
   }),
+  // ocis only backported the fix to stable-8.0; reva already backported it to stable-9.0 too,
+  // so once ocis's go.mod is bumped the fix is there — the cross-repo gap check should say so.
+  ticket('OCISDEV-1620', 'gRPC client keeps using a dead node from its connection cache', {
+    assignee: people.robin,
+    fixVersions: [FRANCES],
+    remoteLinkUrls: ['https://github.com/owncloud/reva/pull/796'],
+  }),
   // Sprint 26
   ticket('OCISDEV-1506', 'User search ignores the filter parameter', {
     sprintId: 26,
@@ -281,6 +288,7 @@ function pr(
     checks: details.checks ?? (state === 'merged' ? 'passing' : 'none'),
     review: details.review ?? (state === 'merged' ? 'approved' : 'none'),
     closingIssues: [],
+    mergeCommitSha: state === 'merged' ? `${number.toString(16).padStart(12, '0')}deadbeef` : null,
   };
 }
 
@@ -395,6 +403,18 @@ export const DEMO_PULL_REQUESTS: PullRequest[] = [
   }),
   pr(OCIS, 10990, 'fix(search): [OCISDEV-412] escape special characters in queries', {
     merged: '2025-06-18',
+  }),
+  // OCISDEV-1620: ocis only has the stable-8.0 backport; reva already backported the same fix to
+  // stable-9.0. ocis/stable-9.0 is "missing" here, which is exactly the cross-repo gap to flag.
+  pr(OCIS, 13280, 'fix: [backport][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.0',
+    body: 'Backport of a fix only ever merged directly to stable-8.0.',
+    merged: '2026-02-08',
+  }),
+  pr(REVA, 796, 'fix: [stable-9.0][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-9.0',
+    body: 'Backport of a fix only ever merged directly to stable-9.0.',
+    merged: '2026-10-18',
   }),
 ];
 

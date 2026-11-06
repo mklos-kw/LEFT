@@ -30,6 +30,7 @@ function pr(overrides: Partial<PullRequest>): PullRequest {
     checks: 'none',
     review: 'none',
     closingIssues: [],
+    mergeCommitSha: null,
     ...overrides,
   };
 }

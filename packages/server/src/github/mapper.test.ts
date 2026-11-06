@@ -18,6 +18,7 @@ function node(overrides: Partial<GraphQLPullRequest> = {}): GraphQLPullRequest {
     baseRefName: 'master',
     author: { login: 'dev' },
     repository: { nameWithOwner: 'ownCloud/ocis' },
+    mergeCommit: null,
     closingIssuesReferences: { nodes: [] },
     ...overrides,
   };

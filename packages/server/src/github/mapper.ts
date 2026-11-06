@@ -26,6 +26,7 @@ export interface GraphQLPullRequest {
   baseRefName: string;
   author: { login: string } | null;
   repository: { nameWithOwner: string };
+  mergeCommit: { oid: string } | null;
   closingIssuesReferences: {
     nodes: { number: number; title: string; url: string; repository: { nameWithOwner: string } }[];
   };
@@ -80,6 +81,7 @@ export function toPullRequest(node: GraphQLPullRequest): PullRequest {
     isDraft: node.isDraft,
     checks: checksOf(node),
     review: reviewOf(node),
+    mergeCommitSha: node.mergeCommit?.oid ?? null,
     closingIssues: node.closingIssuesReferences.nodes.map((issue) => ({
       repo: normalizeRepo(issue.repository.nameWithOwner),
       number: issue.number,

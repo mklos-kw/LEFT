@@ -929,58 +929,69 @@ button:disabled {
   font-weight: 400;
 }
 
-/* Where the fix is: one short line per branch this ticket touches. */
-.branch-list {
+/* Where the fix is: repo rows x branch columns, so the same branch lines up across repos. */
+.branch-grid {
   display: grid;
-  grid-template-columns: max-content max-content 1fr;
-  gap: 4px 14px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  column-gap: 10px;
+  row-gap: 3px;
+  align-items: baseline;
   font-size: var(--text-s);
 }
 
-.branch-row {
-  display: contents;
-}
-
-.branch-name {
-  color: var(--ink-2);
-}
-
-.branch-repo {
+.grid-head {
   color: var(--ink-3);
+  font-weight: 600;
+  text-align: center;
 }
 
-.branch-status {
+.grid-repo {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+.grid-cell {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.cell-glyph {
   font-weight: 650;
+  cursor: default;
 }
 
-[data-status='merged'] .branch-status,
-[data-status='included'] .branch-status {
-  color: var(--merged);
+/* One status colour per cell, inherited by the glyph and its PR number, so a row reads as one unit. */
+.grid-cell[data-status='merged'],
+.grid-cell[data-status='included'] {
+  --status-color: var(--merged);
 }
 
-[data-status='open'] .branch-status {
-  color: var(--waiting);
+.grid-cell[data-status='open'] {
+  --status-color: var(--waiting);
 }
 
-[data-status='missing'] .branch-status {
-  color: var(--missing);
+.grid-cell[data-status='missing'] {
+  --status-color: var(--missing);
 }
 
-[data-status='closed'] .branch-status {
-  color: var(--ink-3);
+.grid-cell[data-status='closed'] {
+  --status-color: var(--ink-3);
 }
 
-.branch-detail {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  min-width: 0;
+.cell-glyph,
+.grid-cell .pr-ref {
+  color: var(--status-color, var(--ink-2));
 }
 
-.branch-note {
+/* An error-severity problem (missing backport), not just a warning: make it the loudest glyph. */
+.grid-cell[data-status='missing'] .cell-glyph {
+  font-weight: 800;
+  font-size: 1.1em;
+}
+
+.grid-empty {
   color: var(--ink-3);
 }
 
@@ -988,7 +999,8 @@ button:disabled {
   color: var(--ink-2);
 }
 
-.pr-ref[data-state='closed'] {
+/* Higher specificity than --status-color above: a closed PR stays muted regardless. */
+.grid-cell .pr-ref[data-state='closed'] {
   color: var(--ink-3);
   text-decoration: line-through;
 }

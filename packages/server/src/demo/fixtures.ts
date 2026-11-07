@@ -404,8 +404,9 @@ export const DEMO_PULL_REQUESTS: PullRequest[] = [
   pr(OCIS, 10990, 'fix(search): [OCISDEV-412] escape special characters in queries', {
     merged: '2025-06-18',
   }),
-  // OCISDEV-1620: ocis only has the stable-8.0 backport; reva already backported the same fix to
-  // stable-9.0. ocis/stable-9.0 is "missing" here, which is exactly the cross-repo gap to flag.
+  // OCISDEV-1620: ocis only has the stable-8.0 backport, so stable-9.0 is "missing" there — the
+  // cross-repo gap to flag. reva has the full picture: main plus every stable branch, mirroring
+  // a real multi-branch ocis/reva ticket (OCISDEV-1528) so the matrix has something to show.
   pr(OCIS, 13280, 'fix: [backport][OCISDEV-1620] evict a dead node from the grpc client cache', {
     base: 'stable-8.0',
     body: 'Backport of a fix only ever merged directly to stable-8.0.',
@@ -415,6 +416,25 @@ export const DEMO_PULL_REQUESTS: PullRequest[] = [
     base: 'stable-9.0',
     body: 'Backport of a fix only ever merged directly to stable-9.0.',
     merged: '2026-10-18',
+  }),
+  pr(REVA, 797, 'fix: [main][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    body: 'Backport of #796 to `main`.',
+    merged: '2026-10-19',
+  }),
+  pr(REVA, 798, 'fix: [stable-8.2][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.2',
+    body: 'Backport of #796 to `stable-8.2`.',
+    merged: '2026-10-20',
+  }),
+  pr(REVA, 799, 'fix: [stable-8.1][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.1',
+    body: 'Backport of #796 to `stable-8.1`.',
+    merged: '2026-10-20',
+  }),
+  pr(REVA, 800, 'fix: [stable-8.0][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.0',
+    body: 'Backport of #796 to `stable-8.0`.',
+    merged: '2026-10-21',
   }),
 ];
 
@@ -461,6 +481,8 @@ export const DEMO_REPOS: Record<
     branchPoints: {
       'stable-9.0': '2026-10-12T09:00:00Z',
       'stable-8.2': '2026-07-01T09:00:00Z',
+      'stable-8.1': '2026-05-21T09:00:00Z',
+      'stable-8.0': '2026-01-23T09:00:00Z',
     },
   },
 };

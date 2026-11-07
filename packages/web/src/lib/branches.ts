@@ -1,4 +1,4 @@
-import type { LinkedPr, RepoInfo, RepoName, TicketReport } from '@ocis-dashboard/core';
+import { versionNumber, type LinkedPr, type RepoInfo, type RepoName, type TicketReport } from '@ocis-dashboard/core';
 import { formatRange } from './format';
 
 export type BranchRowStatus = 'merged' | 'included' | 'open' | 'missing' | 'closed';
@@ -19,6 +19,10 @@ export interface BranchRow {
   branchPoint?: string;
   /** A feature branch (neither the default nor a release branch) the ticket's PRs target. */
   isFeature?: boolean;
+  /** Set when `status` is `missing` but a dependency's fix is already covered by this repo's go.mod pin. */
+  pinnedVia?: { repo: RepoName; version: string };
+  /** Set when `status` is `missing` and this repo's dependency already has the fix here. */
+  crossRepoGap?: RepoName;
 }
 
 /**
@@ -97,6 +101,8 @@ export function branchRows(report: TicketReport, repos: RepoInfo[]): BranchRow[]
         prs,
         required: c.required,
         branchPoint: c.branchPoint,
+        pinnedVia: c.pinnedVia,
+        crossRepoGap: c.crossRepoGap,
       });
     }
     return rows;
@@ -119,6 +125,83 @@ export function includedNote(row: BranchRow): string {
   return `already in ${row.branch}: merged to ${row.defaultBranch}${mergedText}, before the branch was cut${cutText}`;
 }
 
+export interface BranchMatrixColumn {
+  key: string;
+  label: string;
+}
+
+export interface BranchMatrixRow {
+  repo: RepoName;
+  /** One slot per `BranchMatrix.columns`; `undefined` where this repo has no such branch. */
+  cells: (BranchRow | undefined)[];
+}
+
+export interface BranchMatrix {
+  columns: BranchMatrixColumn[];
+  rows: BranchMatrixRow[];
+}
+
+/** Column identity: `'default'` for the repo's main branch (named differently per repo), else the branch name. */
+const columnKey = (row: BranchRow): string => (row.isDefault ? 'default' : row.branch);
+
+/** The branch name, shortened to just the version for a release branch (`stable-8.2` -> `8.2`). */
+function columnLabel(row: BranchRow): string {
+  return row.isDefault ? 'default' : versionNumber(row.branch) ?? row.branch;
+}
+
+/**
+ * Lays `branchRows` out as repo × branch, so the same release branch lines up
+ * in the same column across repos instead of each repo listing its own
+ * branches independently; newest branch first, `default` always first.
+ */
+export function branchMatrix(rows: BranchRow[]): BranchMatrix {
+  const columns: BranchMatrixColumn[] = [];
+  const seenColumns = new Set<string>();
+  for (const row of rows) {
+    const key = columnKey(row);
+    if (!seenColumns.has(key)) {
+      seenColumns.add(key);
+      columns.push({ key, label: columnLabel(row) });
+    }
+  }
+  columns.sort((a, b) => {
+    if (a.key === 'default') return -1;
+    if (b.key === 'default') return 1;
+    return b.key.localeCompare(a.key, undefined, { numeric: true });
+  });
+  const columnIndex = new Map(columns.map((c, i) => [c.key, i]));
+
+  const repoRows = new Map<RepoName, BranchMatrixRow>();
+  for (const row of rows) {
+    let group = repoRows.get(row.repo);
+    if (!group) {
+      group = { repo: row.repo, cells: columns.map(() => undefined) };
+      repoRows.set(row.repo, group);
+    }
+    group.cells[columnIndex.get(columnKey(row))!] = row;
+  }
+  return { columns, rows: [...repoRows.values()] };
+}
+
+/** `missing` with a `pinnedVia` counts as covered for display, even though no dedicated PR exists. */
+export function displayStatus(row: BranchRow): BranchRowStatus {
+  return row.pinnedVia ? 'included' : row.status;
+}
+
+const GLYPH: Record<BranchRowStatus, string> = {
+  merged: '✓',
+  included: '✓',
+  open: '~',
+  // '⚠' renders as a colour emoji on most platforms, ignoring the CSS colour below; a plain
+  // glyph is needed so a missing (error-severity) backport actually shows red, not amber.
+  missing: '✗',
+  closed: '·',
+};
+
+export function branchGlyph(row: BranchRow): string {
+  return GLYPH[displayStatus(row)];
+}
+
 function mainStatus(prs: LinkedPr[]): BranchRowStatus {
   if (prs.some((l) => l.pr.state === 'merged')) return 'merged';
   if (prs.some((l) => l.pr.state === 'open')) return 'open';
@@ -137,6 +220,12 @@ export function statusHelp(row: BranchRow): string {
   if (row.isFeature) {
     return `A feature branch: the fix is not in ${row.defaultBranch} until it is merged there.`;
   }
+  if (row.pinnedVia) {
+    return (
+      `No dedicated backport, but ${row.pinnedVia.repo}'s fix on ${row.branch} is already pulled ` +
+      `in via this repo's go.mod pin of ${row.pinnedVia.repo}@${row.pinnedVia.version}.`
+    );
+  }
   switch (row.status) {
     case 'merged':
       return `A PR of this ticket into ${row.branch} is merged.`;
@@ -147,6 +236,12 @@ export function statusHelp(row: BranchRow): string {
     case 'closed':
       return `The only PRs into ${row.branch} were closed without merging.`;
     case 'missing':
+      if (row.crossRepoGap) {
+        return (
+          `No PR of this ticket targets ${row.branch} yet, but ${row.crossRepoGap} already has ` +
+          `this fix there — check whether this repo's go.mod pin of it needs bumping.`
+        );
+      }
       return row.isDefault
         ? `No PR of this ticket targets ${row.branch}.`
         : `No PR of this ticket targets ${row.branch}, and the fix came after ${row.branch} was cut.`;

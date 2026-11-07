@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { LinkedPr } from '@ocis-dashboard/core';
 import {
+  backportFix,
   branchGlyph,
   branchMatrix,
   displayStatus,
@@ -12,10 +13,13 @@ import {
 } from '../lib/branches';
 import { healthSummary } from '../lib/pr-health';
 import { SOURCE_TEXT } from '../lib/view';
+import BackportButton from './BackportButton.vue';
 
 /** Where one ticket's fix is: repo rows, branch columns, so the same branch lines up across repos. */
 const props = defineProps<{ rows: BranchRow[] }>();
 defineEmits<{ more: [] }>();
+
+const fix = computed(() => backportFix(props.rows));
 
 /** A matrix cell, with its PR refs already narrowed to the one shown + a hidden count. */
 interface Cell {
@@ -56,7 +60,13 @@ function cellTitle(row: BranchRow): string {
 
 <template>
   <div class="branch-grid" :style="{ gridTemplateColumns: gridColumns }">
-    <span class="grid-corner" />
+    <BackportButton
+      v-if="fix"
+      class="grid-corner"
+      :command="`/backport ${fix.sha} ${fix.versions.join(' ')}`"
+      :label="`Copy /backport command for ${fix.repo}`"
+    />
+    <span v-else class="grid-corner" />
     <span v-for="col in matrix.columns" :key="col.key" class="grid-head">{{ col.label }}</span>
 
     <template v-for="row in matrix.rows" :key="row.repo">

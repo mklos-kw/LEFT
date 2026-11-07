@@ -215,6 +215,55 @@ export function visiblePrs(prs: LinkedPr[], limit = 2): { shown: LinkedPr[]; hid
   return { shown: sorted.slice(0, limit), hidden: Math.max(0, sorted.length - limit) };
 }
 
+export interface BackportFix {
+  repo: RepoName;
+  sha: string;
+  /** Missing required branches' version numbers, oldest first, e.g. ['8.1', '9.0']. */
+  versions: string[];
+}
+
+/** A real gap: required, missing, and not already covered by a dependency's go.mod pin. */
+const isGap = (row: BranchRow) => row.required && row.status === 'missing' && !row.pinnedVia;
+
+/**
+ * The one `/backport` command that would close this ticket's gap: the first repo (in `rows`
+ * order) with a missing required branch, the version numbers it's missing, and a commit to
+ * cherry-pick from — that repo's own default-branch fix if it has one, else its most recently
+ * merged PR on any branch. Null if no repo has a missing required branch, or the target repo
+ * has no merged PR with a resolvable commit to cherry-pick from (nothing to copy in that case;
+ * other repos' gaps are not considered, e.g. a cross-repo go.mod-pin gap needs a dependency
+ * bump, not a cherry-pick).
+ */
+export function backportFix(rows: BranchRow[]): BackportFix | null {
+  const repoOrder = [...new Set(rows.map((r) => r.repo))];
+  const targetRepo = repoOrder.find((repo) => rows.some((r) => r.repo === repo && isGap(r)));
+  if (!targetRepo) return null;
+
+  const repoRows = rows.filter((r) => r.repo === targetRepo);
+  const versions = [
+    ...new Set(
+      repoRows
+        .filter(isGap)
+        .map((r) => versionNumber(r.branch))
+        .filter((v): v is string => v !== null),
+    ),
+  ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  if (versions.length === 0) return null;
+
+  const sha = sourceSha(repoRows);
+  return sha ? { repo: targetRepo, sha, versions } : null;
+}
+
+/** That repo's default-branch fix if it has one, else its most recently merged PR on any branch. */
+function sourceSha(repoRows: BranchRow[]): string | null {
+  const defaultRow = repoRows.find((r) => r.isDefault && r.status === 'merged');
+  const prs = defaultRow ? defaultRow.prs : repoRows.flatMap((r) => r.prs);
+  const merged = prs
+    .filter((l) => l.pr.state === 'merged' && l.pr.mergeCommitSha)
+    .sort((a, b) => (a.pr.mergedAt ?? '').localeCompare(b.pr.mergedAt ?? ''));
+  return merged.at(-1)?.pr.mergeCommitSha ?? null;
+}
+
 /** What each branch state means, for the tooltip on it. */
 export function statusHelp(row: BranchRow): string {
   if (row.isFeature) {

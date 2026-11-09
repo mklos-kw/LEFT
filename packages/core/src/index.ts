@@ -8,6 +8,7 @@ export {
   backportBranchesFor,
   DEFAULT_BRANCH_TEMPLATE,
   isReleaseBranch,
+  versionCodename,
   versionFamily,
   versionNumber,
 } from './versions';

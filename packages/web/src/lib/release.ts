@@ -1,5 +1,8 @@
 import {
   BLOCK_REASONS,
+  versionCodename,
+  versionFamily,
+  versionNumber,
   type BlockReason,
   type Readiness,
   type ReleaseTarget,
@@ -7,8 +10,40 @@ import {
 } from '@ocis-dashboard/core';
 import { formatRange, isoDay, plural } from './format';
 
-/** Unreleased first (the next one at the top), then released, newest first. */
-export function groupVersions(versions: Version[]): [label: string, versions: Version[]][] {
+export interface VersionGroup {
+  label: 'Unreleased' | 'Released';
+  /** This group's versions, by major.minor family, newest family first. */
+  families: [family: string, versions: Version[]][];
+}
+
+/** By family (newest family's codename labels it), newest family and newest version first. */
+function byFamily(versions: Version[]): [family: string, versions: Version[]][] {
+  const families = new Map<string, Version[]>();
+  for (const version of versions) {
+    const family = versionFamily(version.name);
+    if (!family) continue;
+    (families.get(family) ?? families.set(family, []).get(family)!).push(version);
+  }
+  return [...families.entries()]
+    .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
+    .map(([family, group]) => [
+      family,
+      group.sort((a, b) =>
+        (versionNumber(b.name) ?? '').localeCompare(versionNumber(a.name) ?? '', undefined, {
+          numeric: true,
+        }),
+      ),
+    ]);
+}
+
+/** A family sub-heading: "9.0 Frances" for its newest version's codename. */
+export function familyHeading(family: string, versions: Version[]): string {
+  const codename = versionCodename(versions[0]?.name ?? '');
+  return codename ? `${family} ${codename}` : family;
+}
+
+/** Unreleased first (the next one at the top), then released, newest first; each by family. */
+export function groupVersions(versions: Version[]): VersionGroup[] {
   const upcoming = versions
     .filter((v) => !v.released)
     // Dated ones by date; undated ones (e.g. "Ghez") after them, in Jira's order.
@@ -18,13 +53,18 @@ export function groupVersions(versions: Version[]): [label: string, versions: Ve
     [
       ['Unreleased', upcoming],
       ['Released', released],
-    ] as [string, Version[]][]
-  ).filter(([, group]) => group.length > 0);
+    ] as [VersionGroup['label'], Version[]][]
+  )
+    .map(([label, group]) => ({ label, families: byFamily(group) }))
+    .filter((g) => g.families.length > 0);
 }
 
 /** The version to open when none is chosen: the next one to ship, else the latest released. */
 export function defaultVersion(versions: Version[]): Version | undefined {
-  return groupVersions(versions)[0]?.[1][0];
+  const upcoming = versions
+    .filter((v) => !v.released)
+    .sort((a, b) => (a.releaseDate ?? '9999').localeCompare(b.releaseDate ?? '9999'));
+  return upcoming[0] ?? versions.filter((v) => v.released).reverse()[0];
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

@@ -65,3 +65,12 @@ export function versionFamily(fixVersion: string): string | null {
 export function versionNumber(fixVersion: string): string | null {
   return VERSION.exec(fixVersion)?.[0] ?? null;
 }
+
+/**
+ * The codename in a Jira fixVersion, e.g. "Curie S9 - 8.0.10" -> "Curie S9".
+ * Versions with no " - " separator (e.g. "8.2" or "Ghez") have none.
+ */
+export function versionCodename(fixVersion: string): string | null {
+  const [codename, rest] = fixVersion.split(' - ', 2);
+  return rest && codename ? codename : null;
+}

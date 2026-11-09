@@ -3,6 +3,7 @@ import {
   backportBranchFor,
   backportBranchesFor,
   isReleaseBranch,
+  versionCodename,
   versionFamily,
   versionNumber,
 } from './versions';
@@ -58,6 +59,16 @@ describe('versionNumber', () => {
     ['Ghez', null],
   ])('maps %j to %j', (fixVersion, number) => {
     expect(versionNumber(fixVersion)).toBe(number);
+  });
+});
+
+describe('versionCodename', () => {
+  it.each([
+    ['Curie S9 - 8.0.10', 'Curie S9'],
+    ['8.2', null],
+    ['Ghez', null],
+  ])('maps %j to %j', (fixVersion, codename) => {
+    expect(versionCodename(fixVersion)).toBe(codename);
   });
 });
 

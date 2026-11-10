@@ -38,11 +38,11 @@ export function readUrlState(
   const blocking = params.get('blocking');
   return {
     mode: mode === 'sprint' || mode === 'dates' || mode === 'release' ? mode : undefined,
-    version: text('version'),
     boardId: id('board'),
     sprintId: id('sprint'),
     from: day('from'),
     to: day('to'),
+    version: text('version'),
     problem: problem && problems.includes(problem) ? problem : undefined,
     blocking: blocking && blockFilters.includes(blocking) ? blocking : undefined,
     assignee: text('assignee'),

@@ -3,10 +3,10 @@ export type SelectionMode = 'sprint' | 'dates' | 'release';
 </script>
 
 <script setup lang="ts">
-import type { Board, Sprint, Version } from '@ocis-dashboard/core';
+import { versionNumber, type Board, type Sprint, type Version } from '@ocis-dashboard/core';
 import { computed } from 'vue';
 import { formatRange } from '../lib/format';
-import { groupVersions } from '../lib/release';
+import { familyHeading, groupVersions } from '../lib/release';
 
 const props = defineProps<{
   boards: Board[];
@@ -83,10 +83,15 @@ const sprintGroups = computed(() =>
     >
       <option v-if="versionsLoading" value="">Loading versions…</option>
       <option v-else-if="versions.length === 0" value="">No versions in this project</option>
-      <optgroup v-for="[label, group] in versionGroups" :key="label" :label="label">
-        <option v-for="v in group" :key="v.id" :value="v.name">
-          {{ v.name }}<template v-if="v.releaseDate">, {{ formatRange(v.releaseDate) }}</template>
-        </option>
+      <optgroup v-for="g in versionGroups" :key="g.label" :label="g.label">
+        <template v-for="[family, group] in g.families" :key="family">
+          <option disabled>{{ familyHeading(family, group) }}</option>
+          <option v-for="v in group" :key="v.id" :value="v.name">
+            {{ versionNumber(v.name)
+            }}<template v-if="v.releaseDate">, {{ formatRange(v.releaseDate) }}</template
+            ><template v-else>, Unreleased</template>
+          </option>
+        </template>
       </optgroup>
     </select>
 

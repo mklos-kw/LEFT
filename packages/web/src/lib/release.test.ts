@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   blockFilterKeys,
   defaultVersion,
+  familyHeading,
   groupVersions,
   reasonLabel,
   releaseDateNote,
@@ -20,15 +21,40 @@ const VERSIONS = [
 ];
 
 describe('groupVersions', () => {
-  it('lists unreleased by date (undated last), then released newest first', () => {
-    expect(groupVersions(VERSIONS).map(([label, vs]) => [label, vs.map((x) => x.name)])).toEqual([
-      ['Unreleased', ['Curie S9 - 8.0.10', 'Frances - 9.0.0', 'Ghez']],
-      ['Released', ['Deledda - 8.1.0', 'Curie - 8.0.0']],
+  it('splits unreleased/released, then groups each by family, newest family first', () => {
+    expect(
+      groupVersions(VERSIONS).map((g) => [
+        g.label,
+        g.families.map(([family, vs]) => [family, vs.map((x) => x.name)]),
+      ]),
+    ).toEqual([
+      ['Unreleased', [['9.0', ['Frances - 9.0.0']], ['8.0', ['Curie S9 - 8.0.10']]]],
+      ['Released', [['8.1', ['Deledda - 8.1.0']], ['8.0', ['Curie - 8.0.0']]]],
     ]);
   });
 
-  it('leaves out empty groups', () => {
-    expect(groupVersions([v('Curie - 8.0.0', true)]).map(([label]) => label)).toEqual(['Released']);
+  it('leaves out empty groups, and versions with no number', () => {
+    expect(groupVersions([v('Curie - 8.0.0', true)]).map((g) => g.label)).toEqual(['Released']);
+    expect(groupVersions([v('Ghez', false)])).toEqual([]);
+  });
+
+  it('puts the same family under both groups when it has members on both sides', () => {
+    const versions = [v('Curie - 8.0.0', true, '2025-05-12'), v('Curie S9 - 8.0.10', false)];
+    const families = groupVersions(versions).map((g) => [g.label, g.families.map(([f]) => f)]);
+    expect(families).toEqual([
+      ['Unreleased', ['8.0']],
+      ['Released', ['8.0']],
+    ]);
+  });
+});
+
+describe('familyHeading', () => {
+  it('shows the family with its newest version’s codename', () => {
+    expect(familyHeading('8.0', [v('Curie S9 - 8.0.10', false)])).toBe('8.0 Curie S9');
+  });
+
+  it('falls back to the bare family when there is no codename', () => {
+    expect(familyHeading('8.2', [v('8.2', false)])).toBe('8.2');
   });
 });
 

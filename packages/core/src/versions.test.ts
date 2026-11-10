@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { backportBranchFor, backportBranchesFor, isReleaseBranch } from './versions';
+import {
+  backportBranchFor,
+  backportBranchesFor,
+  isReleaseBranch,
+  versionCodename,
+  versionFamily,
+  versionNumber,
+} from './versions';
 
 describe('backportBranchFor', () => {
   it.each([
@@ -30,6 +37,38 @@ describe('isReleaseBranch', () => {
   it('follows a custom template', () => {
     expect(isReleaseBranch('release/9.0', 'release/{major}.{minor}')).toBe(true);
     expect(isReleaseBranch('stable-9.0', 'release/{major}.{minor}')).toBe(false);
+  });
+});
+
+describe('versionFamily', () => {
+  it.each([
+    ['Frances - 9.0.0', '9.0'],
+    ['Curie S9 - 8.0.10', '8.0'],
+    ['8.2', '8.2'],
+    ['Ghez', null],
+  ])('maps %j to %j', (fixVersion, family) => {
+    expect(versionFamily(fixVersion)).toBe(family);
+  });
+});
+
+describe('versionNumber', () => {
+  it.each([
+    ['Frances - 9.0.0', '9.0.0'],
+    ['Curie S9 - 8.0.10', '8.0.10'],
+    ['8.2', '8.2'],
+    ['Ghez', null],
+  ])('maps %j to %j', (fixVersion, number) => {
+    expect(versionNumber(fixVersion)).toBe(number);
+  });
+});
+
+describe('versionCodename', () => {
+  it.each([
+    ['Curie S9 - 8.0.10', 'Curie S9'],
+    ['8.2', null],
+    ['Ghez', null],
+  ])('maps %j to %j', (fixVersion, codename) => {
+    expect(versionCodename(fixVersion)).toBe(codename);
   });
 });
 

@@ -41,6 +41,7 @@ import {
   type ProblemFilter,
   type SortKey,
 } from '../lib/view';
+import CopyJsonButton from './CopyJsonButton.vue';
 import ErrorBanner from './ErrorBanner.vue';
 import ReadinessBanner from './ReadinessBanner.vue';
 import TicketFilters from './TicketFilters.vue';
@@ -435,6 +436,7 @@ function addRepo(name: string) {
           :multi-repo="enabledRepos.length > 1"
         />
         <LoadStatus :state="report" @refresh="refresh" />
+        <CopyJsonButton v-if="shown.length > 0" :data="shown" label="Copy all shown tickets as JSON" />
       </div>
       <ErrorBanner v-if="report.status === 'error'" :error="report.error" :retry="refresh" />
 

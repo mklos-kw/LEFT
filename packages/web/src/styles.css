@@ -204,6 +204,24 @@ button:disabled {
   background: var(--action-tint);
 }
 
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-2);
+}
+
+.icon-button:hover {
+  background: var(--action-tint);
+  color: var(--action);
+}
+
 /* ---- App frame --------------------------------------------------------- */
 
 .app {
@@ -1051,6 +1069,12 @@ button:disabled {
   gap: 4px 16px;
   margin-top: 8px;
   font-size: var(--text-s);
+}
+
+/* Pinned to the right edge regardless of which other actions this row has, so it
+   lands in the same spot on every row and can be hit by muscle memory. */
+.row-actions .icon-button {
+  margin-left: auto;
 }
 
 .flag-actions {

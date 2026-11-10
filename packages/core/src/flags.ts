@@ -1,4 +1,13 @@
-import type { Flag, FlagAction, FlagCode, LinkedPr, Severity, TicketReport } from './types';
+import type {
+  BranchCoverage,
+  Flag,
+  FlagAction,
+  FlagCode,
+  LinkedPr,
+  RepoName,
+  Severity,
+  TicketReport,
+} from './types';
 
 export type FlagContext = Omit<TicketReport, 'flags'>;
 
@@ -46,19 +55,51 @@ const prOpen: FlagRule = ({ prs }) => {
 
 const missingBackport: FlagRule = ({ prs, coverage }) =>
   coverage
-    .filter((branch) => branch.required && branch.status === 'missing')
-    .map((branch) =>
-      flag(
+    .filter((branch) => branch.required && branch.status === 'missing' && !branch.pinnedVia)
+    .map((branch) => {
+      const gapNote = branch.crossRepoGap ? ` — ${branch.crossRepoGap} already has this fix there` : '';
+      return flag(
         'MISSING_BACKPORT',
         'error',
-        `No backport to ${branch.branch} (${branch.repo})`,
+        `No backport to ${branch.branch} (${branch.repo})${gapNote}`,
         // The PR to backport from.
         actionFor(
           prs.find((l) => l.pr.repo === branch.repo && l.intoDefault && l.pr.state === 'merged'),
           'Open master PR',
         ),
-      ),
+      );
+    });
+
+/** For each repo, a newer required branch still missing while an older one is already fixed. */
+const olderBranchFixed: FlagRule = ({ coverage }) => {
+  const byRepo = new Map<RepoName, BranchCoverage[]>();
+  for (const branch of coverage) {
+    if (!branch.required) continue;
+    byRepo.set(branch.repo, [...(byRepo.get(branch.repo) ?? []), branch]);
+  }
+
+  const flags: Flag[] = [];
+  for (const [repo, branches] of byRepo) {
+    const oldestFirst = [...branches].sort((a, b) =>
+      a.branch.localeCompare(b.branch, undefined, { numeric: true }),
     );
+    let olderFixed: string | null = null;
+    for (const branch of oldestFirst) {
+      if (branch.status === 'merged' || branch.status === 'included' || branch.pinnedVia) {
+        olderFixed = branch.branch;
+      } else if (branch.status === 'missing' && olderFixed) {
+        flags.push(
+          flag(
+            'OLDER_BRANCH_FIXED',
+            'warning',
+            `${olderFixed} already has this fix, but ${branch.branch} doesn't yet (${repo})`,
+          ),
+        );
+      }
+    }
+  }
+  return flags;
+};
 
 /**
  * An open backport is "not merged yet", and also "stale" once its oldest open
@@ -146,6 +187,7 @@ export const defaultFlagRules: FlagRule[] = [
   prOpen,
   missingBackport,
   backportOpen,
+  olderBranchFixed,
   notLinkedInJira,
   keyMissingInPr,
   issueNotLinked,

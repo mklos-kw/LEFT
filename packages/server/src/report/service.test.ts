@@ -51,6 +51,7 @@ function pr(number: number, overrides: Partial<PullRequest> = {}): PullRequest {
     checks: 'none',
     review: 'none',
     closingIssues: [],
+    mergeCommitSha: null,
     ...overrides,
   };
 }
@@ -88,6 +89,9 @@ function setup() {
     ),
     // #99 is only known from the Jira remote link.
     pullRequests: vi.fn(async () => [pr(99, { title: 'docs', baseRef: 'master' })]),
+    fileAtRef: vi.fn(async () => null),
+    resolveRef: vi.fn(async () => null),
+    commitIncludes: vi.fn(async () => false),
   };
   const service = new ReportService({
     tickets,
@@ -95,6 +99,7 @@ function setup() {
     projectKey: 'OCISDEV',
     branchTemplates: {},
     staleBackportDays: 7,
+    repoDependencies: {},
     cache: new TtlCache(60_000),
   });
   return { service, tickets, code };

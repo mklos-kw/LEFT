@@ -154,6 +154,13 @@ export const DEMO_TICKETS: DemoTicket[] = [
     assignee: people.jordan,
     fixVersions: [GHEZ],
   }),
+  // ocis only backported the fix to stable-8.0; reva already backported it to stable-9.0 too,
+  // so once ocis's go.mod is bumped the fix is there — the cross-repo gap check should say so.
+  ticket('OCISDEV-1620', 'gRPC client keeps using a dead node from its connection cache', {
+    assignee: people.robin,
+    fixVersions: [FRANCES],
+    remoteLinkUrls: ['https://github.com/owncloud/reva/pull/796'],
+  }),
   // Sprint 26
   ticket('OCISDEV-1506', 'User search ignores the filter parameter', {
     sprintId: 26,
@@ -281,6 +288,7 @@ function pr(
     checks: details.checks ?? (state === 'merged' ? 'passing' : 'none'),
     review: details.review ?? (state === 'merged' ? 'approved' : 'none'),
     closingIssues: [],
+    mergeCommitSha: state === 'merged' ? `${number.toString(16).padStart(12, '0')}deadbeef` : null,
   };
 }
 
@@ -396,6 +404,38 @@ export const DEMO_PULL_REQUESTS: PullRequest[] = [
   pr(OCIS, 10990, 'fix(search): [OCISDEV-412] escape special characters in queries', {
     merged: '2025-06-18',
   }),
+  // OCISDEV-1620: ocis only has the stable-8.0 backport, so stable-9.0 is "missing" there — the
+  // cross-repo gap to flag. reva has the full picture: main plus every stable branch, mirroring
+  // a real multi-branch ocis/reva ticket (OCISDEV-1528) so the matrix has something to show.
+  pr(OCIS, 13280, 'fix: [backport][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.0',
+    body: 'Backport of a fix only ever merged directly to stable-8.0.',
+    merged: '2026-02-08',
+  }),
+  pr(REVA, 796, 'fix: [stable-9.0][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-9.0',
+    body: 'Backport of a fix only ever merged directly to stable-9.0.',
+    merged: '2026-10-18',
+  }),
+  pr(REVA, 797, 'fix: [main][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    body: 'Backport of #796 to `main`.',
+    merged: '2026-10-19',
+  }),
+  pr(REVA, 798, 'fix: [stable-8.2][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.2',
+    body: 'Backport of #796 to `stable-8.2`.',
+    merged: '2026-10-20',
+  }),
+  pr(REVA, 799, 'fix: [stable-8.1][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.1',
+    body: 'Backport of #796 to `stable-8.1`.',
+    merged: '2026-10-20',
+  }),
+  pr(REVA, 800, 'fix: [stable-8.0][OCISDEV-1620] evict a dead node from the grpc client cache', {
+    base: 'stable-8.0',
+    body: 'Backport of #796 to `stable-8.0`.',
+    merged: '2026-10-21',
+  }),
 ];
 
 /** Issues that mention a ticket key in their description, as the team writes them. */
@@ -441,6 +481,8 @@ export const DEMO_REPOS: Record<
     branchPoints: {
       'stable-9.0': '2026-10-12T09:00:00Z',
       'stable-8.2': '2026-07-01T09:00:00Z',
+      'stable-8.1': '2026-05-21T09:00:00Z',
+      'stable-8.0': '2026-01-23T09:00:00Z',
     },
   },
 };

@@ -18,6 +18,7 @@ const PR_FIELDS = `
     author { login }
     commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
     repository { nameWithOwner }
+    mergeCommit { oid }
     closingIssuesReferences(first: 10) {
       nodes { number title url repository { nameWithOwner } }
     }
@@ -43,6 +44,18 @@ type SearchResult = Record<string, { nodes: SearchNode[] }>;
 /** The part of GitHub's compare API response we use. */
 interface CompareResponse {
   merge_base_commit?: { commit: { committer?: { date?: string } } };
+  /** `identical`/`ahead`: `base` is reachable from `head` (an ancestor, or the same commit). */
+  status?: 'identical' | 'ahead' | 'behind' | 'diverged';
+}
+
+/** The part of GitHub's contents API response we use, for a file (not a directory). */
+interface ContentsResponse {
+  content?: string;
+  encoding?: string;
+}
+
+interface RefResult {
+  repository: { object: { oid: string } | null } | null;
 }
 
 interface RepoResult {
@@ -163,6 +176,49 @@ export class GitHubClient implements CodeHost {
       }
     }
     return prs;
+  }
+
+  /** The content of `path` at `ref` (branch, tag or SHA); null if it doesn't exist there. */
+  async fileAtRef(repo: RepoName, ref: string, path: string): Promise<string | null> {
+    const url = `${REST_URL}/repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`;
+    try {
+      const result = await requestJson<ContentsResponse>('github', url, {
+        headers: githubHeaders(this.token),
+      });
+      if (!result.content) return null;
+      return Buffer.from(result.content.replace(/\n/g, ''), 'base64').toString('utf-8');
+    } catch (error) {
+      if (error instanceof UpstreamError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  /** The commit SHA a tag or branch name points to; null if it doesn't exist. */
+  async resolveRef(repo: RepoName, ref: string): Promise<string | null> {
+    const [owner, name] = repo.split('/');
+    const data = await this.graphql<RefResult>(
+      `query($owner: String!, $name: String!, $ref: String!) {
+        repository(owner: $owner, name: $name) { object(expression: $ref) { oid } }
+      }`,
+      { owner, name, ref },
+    );
+    return data.repository?.object?.oid ?? null;
+  }
+
+  /** Whether `ancestorSha` is reachable from `descendantSha` (the same commit, or earlier in its history). */
+  async commitIncludes(repo: RepoName, ancestorSha: string, descendantSha: string): Promise<boolean> {
+    const url = `${REST_URL}/repos/${repo}/compare/${ancestorSha}...${descendantSha}?per_page=1`;
+    try {
+      const compare = await requestJson<CompareResponse>('github', url, {
+        headers: githubHeaders(this.token),
+      });
+      return compare.status === 'identical' || compare.status === 'ahead';
+    } catch (error) {
+      if (error instanceof UpstreamError && (error.status === 404 || error.status === 422)) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**

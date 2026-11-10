@@ -84,6 +84,7 @@ describe('sortReports', () => {
           checks: 'none' as const,
           review: 'none' as const,
           closingIssues: [],
+          mergeCommitSha: merged ? `sha-${key}-${i}` : null,
         },
         sources: ['title' as const],
         isBackport: false,

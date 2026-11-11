@@ -1,6 +1,13 @@
 import type { LinkedPr, PullRequest, RepoInfo, RepoName, TicketReport } from '@ocis-dashboard/core';
 import { describe, expect, it } from 'vitest';
-import { backportFix, branchRows, includedNote, visiblePrs, type BranchRow } from './branches';
+import {
+  backportFixes,
+  backportFixForBranch,
+  branchRows,
+  includedNote,
+  visiblePrs,
+  type BranchRow,
+} from './branches';
 
 const OCIS = 'owncloud/ocis';
 const REVA = 'owncloud/reva';
@@ -144,10 +151,14 @@ function linkedIn(
       headRef: '',
       baseRef,
       state,
+      createdAt: mergedAt,
       mergedAt: state === 'merged' ? mergedAt : null,
       updatedAt: mergedAt,
       url: `https://github.com/${repo}/pull/${number}`,
       author: null,
+      isDraft: false,
+      checks: 'none' as const,
+      review: 'none' as const,
       closingIssues: [],
       mergeCommitSha: state === 'merged' ? `sha-${number}` : null,
     },
@@ -172,13 +183,13 @@ function row(overrides: Partial<BranchRow> & Pick<BranchRow, 'repo' | 'branch'>)
   };
 }
 
-describe('backportFix', () => {
+describe('backportFixes', () => {
   it('cherry-picks from the default-branch merge when a required branch is missing', () => {
     const rows = [
       row({ repo: OCIS, branch: 'master', isDefault: true, status: 'merged', prs: [linkedIn(OCIS, 1, 'master')] }),
       row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' }),
     ];
-    expect(backportFix(rows)).toEqual({ repo: OCIS, sha: 'sha-1', versions: ['9.0'] });
+    expect(backportFixes(rows)).toEqual([{ repo: OCIS, sha: 'sha-1', versions: ['9.0'] }]);
   });
 
   it("falls back to the repo's most recently merged PR when there is no default-branch fix (OCISDEV-1620 shape)", () => {
@@ -192,7 +203,7 @@ describe('backportFix', () => {
       }),
       row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' }),
     ];
-    expect(backportFix(rows)).toEqual({ repo: OCIS, sha: 'sha-2', versions: ['9.0'] });
+    expect(backportFixes(rows)).toEqual([{ repo: OCIS, sha: 'sha-2', versions: ['9.0'] }]);
   });
 
   it('picks the latest of several merged PRs when there is no default-branch fix', () => {
@@ -214,7 +225,7 @@ describe('backportFix', () => {
       row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' }),
     ];
     // #4 (stable-8.1) merged later than #3 (stable-8.0), so it's the one to cherry-pick from.
-    expect(backportFix(rows)?.sha).toBe('sha-4');
+    expect(backportFixes(rows)[0]?.sha).toBe('sha-4');
   });
 
   it('lists every missing required version, oldest first, regardless of row order', () => {
@@ -229,7 +240,7 @@ describe('backportFix', () => {
       }),
       row({ repo: OCIS, branch: 'stable-8.1', status: 'missing' }),
     ];
-    expect(backportFix(rows)?.versions).toEqual(['8.1', '9.0']);
+    expect(backportFixes(rows)[0]?.versions).toEqual(['8.1', '9.0']);
   });
 
   it('ignores a missing branch that is not required by any fix version', () => {
@@ -244,10 +255,10 @@ describe('backportFix', () => {
       row({ repo: OCIS, branch: 'stable-9.0', status: 'missing', required: true }),
       row({ repo: OCIS, branch: 'stable-8.0', status: 'missing', required: false }),
     ];
-    expect(backportFix(rows)?.versions).toEqual(['9.0']);
+    expect(backportFixes(rows)[0]?.versions).toEqual(['9.0']);
   });
 
-  it('returns null when every required branch is already covered', () => {
+  it('leaves out a repo whose every required branch is already covered', () => {
     const rows = [
       row({
         repo: OCIS,
@@ -258,7 +269,7 @@ describe('backportFix', () => {
       }),
       row({ repo: OCIS, branch: 'stable-9.0', status: 'included' }),
     ];
-    expect(backportFix(rows)).toBeNull();
+    expect(backportFixes(rows)).toEqual([]);
   });
 
   it('treats a pinnedVia branch as already covered, not a gap to fix', () => {
@@ -277,15 +288,15 @@ describe('backportFix', () => {
         pinnedVia: { repo: REVA, version: 'v2.1.0' },
       }),
     ];
-    expect(backportFix(rows)).toBeNull();
+    expect(backportFixes(rows)).toEqual([]);
   });
 
-  it('returns null when the missing branch has no PR anywhere to cherry-pick from', () => {
+  it('leaves out a repo whose missing branch has no PR anywhere to cherry-pick from', () => {
     const rows = [row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' })];
-    expect(backportFix(rows)).toBeNull();
+    expect(backportFixes(rows)).toEqual([]);
   });
 
-  it('returns null rather than falling through to a merged PR in a different repo', () => {
+  it('does not fall through to a merged PR in a different repo', () => {
     const rows = [
       row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' }),
       row({
@@ -296,10 +307,10 @@ describe('backportFix', () => {
         prs: [linkedIn(REVA, 8, 'main')],
       }),
     ];
-    expect(backportFix(rows)).toBeNull();
+    expect(backportFixes(rows)).toEqual([]);
   });
 
-  it('only handles the first repo (in row order) with a gap, ignoring a second repo that also has one', () => {
+  it('covers every repo with a gap, not just the first', () => {
     const rows = [
       row({
         repo: OCIS,
@@ -318,7 +329,10 @@ describe('backportFix', () => {
       }),
       row({ repo: REVA, branch: 'stable-9.0', status: 'missing' }),
     ];
-    expect(backportFix(rows)).toEqual({ repo: OCIS, sha: 'sha-9', versions: ['9.0'] });
+    expect(backportFixes(rows)).toEqual([
+      { repo: OCIS, sha: 'sha-9', versions: ['9.0'] },
+      { repo: REVA, sha: 'sha-10', versions: ['9.0'] },
+    ]);
   });
 
   it('skips a fully-covered repo to find the gap in a later one', () => {
@@ -340,7 +354,74 @@ describe('backportFix', () => {
       }),
       row({ repo: REVA, branch: 'stable-9.0', status: 'missing' }),
     ];
-    expect(backportFix(rows)).toEqual({ repo: REVA, sha: 'sha-13', versions: ['9.0'] });
+    expect(backportFixes(rows)).toEqual([{ repo: REVA, sha: 'sha-13', versions: ['9.0'] }]);
+  });
+});
+
+describe('backportFixForBranch', () => {
+  it('fixes just the one branch, even when the repo is missing several', () => {
+    const rows = [
+      row({
+        repo: OCIS,
+        branch: 'master',
+        isDefault: true,
+        status: 'merged',
+        prs: [linkedIn(OCIS, 15, 'master')],
+      }),
+      row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' }),
+      row({ repo: OCIS, branch: 'stable-8.1', status: 'missing' }),
+    ];
+    expect(backportFixForBranch(rows, rows[1]!)).toEqual({
+      repo: OCIS,
+      sha: 'sha-15',
+      versions: ['9.0'],
+    });
+  });
+
+  it('falls back to the most recently merged PR, same as backportFixes', () => {
+    const rows = [
+      row({
+        repo: OCIS,
+        branch: 'stable-8.0',
+        required: false,
+        status: 'merged',
+        prs: [linkedIn(OCIS, 16, 'stable-8.0')],
+      }),
+      row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' }),
+    ];
+    expect(backportFixForBranch(rows, rows[1]!)).toEqual({
+      repo: OCIS,
+      sha: 'sha-16',
+      versions: ['9.0'],
+    });
+  });
+
+  it('returns null for a row that is not a gap', () => {
+    const rows = [
+      row({
+        repo: OCIS,
+        branch: 'master',
+        isDefault: true,
+        status: 'merged',
+        prs: [linkedIn(OCIS, 17, 'master')],
+      }),
+      row({ repo: OCIS, branch: 'stable-9.0', status: 'included' }),
+      row({ repo: OCIS, branch: 'stable-8.1', status: 'missing', required: false }),
+      row({
+        repo: OCIS,
+        branch: 'stable-8.0',
+        status: 'missing',
+        pinnedVia: { repo: REVA, version: 'v2.1.0' },
+      }),
+    ];
+    expect(backportFixForBranch(rows, rows[1]!)).toBeNull();
+    expect(backportFixForBranch(rows, rows[2]!)).toBeNull();
+    expect(backportFixForBranch(rows, rows[3]!)).toBeNull();
+  });
+
+  it('returns null when the repo has no resolvable sha for that cell', () => {
+    const rows = [row({ repo: OCIS, branch: 'stable-9.0', status: 'missing' })];
+    expect(backportFixForBranch(rows, rows[0]!)).toBeNull();
   });
 });
 

@@ -25,9 +25,9 @@ async function copy() {
     class="fix-button"
     type="button"
     :aria-label="label"
-    :title="copied ? 'Copied' : label"
+    :title="copied ? 'Copied' : `${label}: ${command}`"
     @click="copy"
   >
-    {{ copied ? 'Copied' : 'Fix' }}
+    <slot :copied="copied">{{ copied ? 'Copied' : 'Fix' }}</slot>
   </button>
 </template>

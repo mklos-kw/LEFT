@@ -2,13 +2,15 @@
 import { computed } from 'vue';
 import type { LinkedPr } from '@ocis-dashboard/core';
 import {
-  backportFix,
+  backportFixes,
+  backportFixForBranch,
   branchGlyph,
   branchMatrix,
   displayStatus,
   includedNote,
   statusHelp,
   visiblePrs,
+  type BackportFix,
   type BranchRow,
 } from '../lib/branches';
 import { healthSummary } from '../lib/pr-health';
@@ -19,12 +21,21 @@ import BackportButton from './BackportButton.vue';
 const props = defineProps<{ rows: BranchRow[] }>();
 defineEmits<{ more: [] }>();
 
-const fix = computed(() => backportFix(props.rows));
+const fixes = computed(() => backportFixes(props.rows));
+const fixCommand = computed(() =>
+  fixes.value.map((f) => `/backport ${f.sha} ${f.versions.join(' ')}`).join('\n'),
+);
+const fixLabel = computed(
+  () =>
+    `Copy /backport command${fixes.value.length > 1 ? 's' : ''} for ` +
+    fixes.value.map((f) => f.repo).join(', '),
+);
 
 /** A matrix cell, with its PR refs already narrowed to the one shown + a hidden count. */
 interface Cell {
   row: BranchRow;
   prs: { shown: LinkedPr[]; hidden: number };
+  fix: BackportFix | null;
 }
 
 const matrix = computed(() => {
@@ -35,7 +46,9 @@ const matrix = computed(() => {
     rows: built.rows.map((row) => ({
       repo: row.repo,
       cells: row.cells.map((cell): Cell | undefined =>
-        cell ? { row: cell, prs: visiblePrs(cell.prs, 1) } : undefined,
+        cell
+          ? { row: cell, prs: visiblePrs(cell.prs, 1), fix: backportFixForBranch(props.rows, cell) }
+          : undefined,
       ),
     })),
   };
@@ -61,10 +74,10 @@ function cellTitle(row: BranchRow): string {
 <template>
   <div class="branch-grid" :style="{ gridTemplateColumns: gridColumns }">
     <BackportButton
-      v-if="fix"
+      v-if="fixes.length > 0"
       class="grid-corner"
-      :command="`/backport ${fix.sha} ${fix.versions.join(' ')}`"
-      :label="`Copy /backport command for ${fix.repo}`"
+      :command="fixCommand"
+      :label="fixLabel"
     />
     <span v-else class="grid-corner" />
     <span v-for="col in matrix.columns" :key="col.key" class="grid-head">{{ col.label }}</span>
@@ -78,7 +91,17 @@ function cellTitle(row: BranchRow): string {
         :data-status="cell ? displayStatus(cell.row) : undefined"
       >
         <template v-if="cell">
-          <span class="cell-glyph" :title="cellTitle(cell.row)">{{ branchGlyph(cell.row) }}</span>
+          <BackportButton
+            v-if="cell.fix"
+            class="cell-glyph is-missing"
+            :command="`/backport ${cell.fix.sha} ${cell.fix.versions.join(' ')}`"
+            :label="`Copy /backport command for ${cell.row.repo} ${cell.fix.versions[0]}`"
+          >
+            <template #default="{ copied }">{{ copied ? 'Copied' : branchGlyph(cell.row) }}</template>
+          </BackportButton>
+          <span v-else class="cell-glyph" :title="cellTitle(cell.row)">{{
+            branchGlyph(cell.row)
+          }}</span>
           <a
             v-if="cell.prs.shown[0]"
             class="pr-ref identifier"

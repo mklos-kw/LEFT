@@ -226,20 +226,30 @@ export interface BackportFix {
 const isGap = (row: BranchRow) => row.required && row.status === 'missing' && !row.pinnedVia;
 
 /**
- * The one `/backport` command that would close this ticket's gap: the first repo (in `rows`
- * order) with a missing required branch, the version numbers it's missing, and a commit to
- * cherry-pick from — that repo's own default-branch fix if it has one, else its most recently
- * merged PR on any branch. Null if no repo has a missing required branch, or the target repo
- * has no merged PR with a resolvable commit to cherry-pick from (nothing to copy in that case;
- * other repos' gaps are not considered, e.g. a cross-repo go.mod-pin gap needs a dependency
- * bump, not a cherry-pick).
+ * One `/backport` command per repo that has a resolvable gap: a missing required branch with a
+ * commit to cherry-pick from — that repo's own default-branch fix if it has one, else its most
+ * recently merged PR on any branch. A repo with a gap but no such commit is left out, not
+ * returned as a null entry (nothing to copy in that case; other repos' gaps don't help either,
+ * e.g. a cross-repo go.mod-pin gap needs a dependency bump, not a cherry-pick).
  */
-export function backportFix(rows: BranchRow[]): BackportFix | null {
-  const repoOrder = [...new Set(rows.map((r) => r.repo))];
-  const targetRepo = repoOrder.find((repo) => rows.some((r) => r.repo === repo && isGap(r)));
-  if (!targetRepo) return null;
+export function backportFixes(rows: BranchRow[]): BackportFix[] {
+  const repos = [...new Set(rows.map((r) => r.repo))];
+  return repos
+    .map((repo) => fixForRepo(rows.filter((r) => r.repo === repo)))
+    .filter((fix): fix is BackportFix => fix !== null);
+}
 
-  const repoRows = rows.filter((r) => r.repo === targetRepo);
+/** The fix for one cell: the single version it's missing, same sha-resolution rules as above. */
+export function backportFixForBranch(rows: BranchRow[], target: BranchRow): BackportFix | null {
+  if (!isGap(target)) return null;
+  const version = versionNumber(target.branch);
+  if (!version) return null;
+  const sha = sourceSha(rows.filter((r) => r.repo === target.repo));
+  return sha ? { repo: target.repo, sha, versions: [version] } : null;
+}
+
+/** This repo's missing required versions (oldest first) and a commit to cherry-pick them from. */
+function fixForRepo(repoRows: BranchRow[]): BackportFix | null {
   const versions = [
     ...new Set(
       repoRows
@@ -251,7 +261,7 @@ export function backportFix(rows: BranchRow[]): BackportFix | null {
   if (versions.length === 0) return null;
 
   const sha = sourceSha(repoRows);
-  return sha ? { repo: targetRepo, sha, versions } : null;
+  return sha ? { repo: repoRows[0]!.repo, sha, versions } : null;
 }
 
 /** That repo's default-branch fix if it has one, else its most recently merged PR on any branch. */

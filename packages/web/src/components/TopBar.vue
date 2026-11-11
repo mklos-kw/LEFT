@@ -21,7 +21,7 @@ const signedIn = computed(
     <div class="top-bar-end">
       <a
         class="quiet-button"
-        href="https://gist.github.com/mklos-kw/3c2db2a25632d156b07ce1299a9a0411"
+        href="https://github.com/owncloud/ai-skills/blob/ff9d887e51567e9eb321d6d6bc21efb14f6db9d4/plugins/ocis-dev/skills/backport/SKILL.md"
         target="_blank"
         rel="noreferrer"
         title="Opens the /backport skill's docs in a new tab"
